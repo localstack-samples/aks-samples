@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vacation-planner-nosql-config
+  namespace: vacation-planner-nosql
+  labels:
+    app: vacation-planner-nosql
+data:
+  AZURECOSMOSDB_ENDPOINT: ""
+  AZURECOSMOSDB_DATABASENAME: "vacationplanner"
+  AZURECOSMOSDB_CONTAINERNAME: "activities"
+  LOGIN_NAME: "alex"

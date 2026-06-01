@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vacation-planner-sql-config
+  namespace: vacation-planner-sql
+  labels:
+    app: vacation-planner-sql
+data:
+  SQL_SERVER: ""
+  SQL_DATABASE: ""
+  SQL_USERNAME: ""
+  LOGIN_NAME: "Paolo"

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vacation-planner-blob-config
+  namespace: vacation-planner-blob
+  labels:
+    app: vacation-planner-blob
+data:
+  CONTAINER_NAME: "activities"

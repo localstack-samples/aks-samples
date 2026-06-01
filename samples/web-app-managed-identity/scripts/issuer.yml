@@ -1,0 +1,24 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: vacation-planner-blob-issuer
+  namespace: vacation-planner-blob
+spec:
+  acme:
+    email: paolo.salvatori@gmail.com
+    privateKeySecretRef:
+      name: vacation-planner-blob-issuer
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+    - http01:
+        gatewayHTTPRoute:
+          parentRefs:
+          - name: vacation-planner-blob
+            namespace: vacation-planner-blob
+            kind: Gateway
+            group: gateway.networking.k8s.io
+            sectionName: vacation-planner-blob-http
+          podTemplate:
+            spec:
+              nodeSelector:
+                kubernetes.io/os: linux
