@@ -1,4 +1,4 @@
-# AKS Samples
+# Azure Kubernetes Service (AKS) Samples
 
 This repository contains a set of end-to-end samples that show how to deploy an [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/what-is-aks) cluster and run a real workload on it, either against Azure in the cloud or locally on the [LocalStack for Azure](https://docs.localstack.cloud/azure/) emulator.
 
@@ -115,3 +115,23 @@ The following tools are useful when working with these samples:
 | [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/) ([repo](https://github.com/Azure/azure-cli)) | The command-line tool for creating and managing Azure resources. |
 | [Azure Storage Explorer](https://learn.microsoft.com/en-us/azure/storage/storage-explorer/vs-azure-tools-storage-manage-with-storage-explorer?tabs=windows) | A graphical desktop tool to browse and manage blobs, tables, queues, and files in Azure Storage accounts. |
 | [LocalStack for Azure](https://docs.localstack.cloud/azure/) ([repo](https://github.com/localstack/localstack)) | A cloud service emulator that runs the Azure resource model locally for development and testing. |
+
+## Training Courses 
+This section contains links to useful free training courses. 
+
+### Microsoft | Learn
+
+- [Browse all training](https://learn.microsoft.com/en-us/training/browse/) (if you are curious to see the available training courses)
+- [Introduction to Kubernetes](https://learn.microsoft.com/en-us/training/modules/intro-to-kubernetes/)
+- [Introduction to Azure Kubernetes Service](https://learn.microsoft.com/en-us/training/modules/intro-to-azure-kubernetes-service/)
+- [Implement Azure Container Apps](https://learn.microsoft.com/en-us/training/modules/implement-azure-container-apps/)
+- [Deploy a containerized application on Azure Kubernetes Service](https://learn.microsoft.com/en-us/training/modules/aks-deploy-container-app/)
+
+### The Linux Foundation
+
+- [Kubernetes and Cloud Native Essentials (LFS250)](https://training.linuxfoundation.org/training/kubernetes-and-cloud-native-essentials-lfs250/)
+- [Introduction to Kubernetes (LFS158)](https://training.linuxfoundation.org/training/introduction-to-kubernetes/)
+
+### Kubernetes Documentation
+
+- [Learn Kubernetes Basics](https://kubernetes.io/docs/tutorials/kubernetes-basics/)
