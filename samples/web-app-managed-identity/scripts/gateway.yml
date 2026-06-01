@@ -8,14 +8,14 @@ metadata:
 spec:
   gatewayClassName: nginx
   listeners:
-  - hostname: zeus.echo.babosbird.com
+  - hostname: local.echo.babosbird.com
     name: http
     port: 80
     protocol: HTTP
     allowedRoutes:
       namespaces:
         from: All
-  - hostname: zeus.echo.babosbird.com
+  - hostname: local.echo.babosbird.com
     name: https
     port: 443
     protocol: HTTPS

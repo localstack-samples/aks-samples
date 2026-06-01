@@ -6,7 +6,7 @@ metadata:
   name: vacation-planner-blob
 spec:
   hostnames:
-  - planner.zeus.babosbird.com
+  - planner.local.babosbird.com
   parentRefs:
   - name: vacation-planner-blob
     port: 443

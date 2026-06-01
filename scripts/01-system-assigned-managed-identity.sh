@@ -3,7 +3,7 @@
 # Variables
 
 # Azure Kubernetes Service (AKS) cluster
-prefix="local" # zeus, poseidon, hades, demeter, apollo, artemis, ares, athena, hephaestus, hermes
+prefix="local" # local, poseidon, hades, demeter, apollo, artemis, ares, athena, hephaestus, hermes
 suffix="test"
 aks_cluster_name="$prefix-aks-$suffix"
 resource_group_name="$prefix-rg"

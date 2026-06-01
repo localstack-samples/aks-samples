@@ -1,7 +1,7 @@
 # Variables
 
 # Azure Resources
-PREFIX='zeus'
+PREFIX='local'
 SUFFIX='test'
 LOCATION='italynorth'
 RESOURCE_GROUP_NAME="${PREFIX}-rg"
@@ -18,7 +18,7 @@ CURRENT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # DNS
 DNS_ZONE_RESOURCE_GROUP_NAME="dns-rg"
 DNS_ZONE_NAME="babosbird.com"
-SUBDOMAIN="planner.zeus"
+SUBDOMAIN="planner.local"
 
 # Storage Account
 STORAGE_ACCOUNT_NAME="${PREFIX}storage${SUFFIX}"
