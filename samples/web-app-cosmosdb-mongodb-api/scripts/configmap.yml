@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vacation-planner-mongodb-config
+  namespace: vacation-planner-mongodb
+  labels:
+    app: vacation-planner-mongodb
+data:
+  COSMOSDB_DATABASE_NAME: "sampledb"
+  COSMOSDB_COLLECTION_NAME: "activities"
+  LOGIN_NAME: "paolo"
