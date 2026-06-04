@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vacation-planner-postgres-config
+  namespace: vacation-planner-postgres
+  labels:
+    app: vacation-planner-postgres
+data:
+  # PG_HOST points at the in-cluster primary (write) Service from statefulset.yml.
+  # Values are overwritten by 05-deploy-app.sh at apply time.
+  PG_HOST: "pg-postgres-primary"
+  PG_PORT: "5432"
+  PG_DATABASE: "PlannerDB"
+  PG_USER: "testuser"
+  LOGIN_NAME: "paolo"
+  DEBUG: "false"

@@ -6,6 +6,7 @@ Every sample deploys the same Vacation Planner web app, a small Python [Flask](h
 
 - [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview?view=azuresql)
 - [Azure Database DB for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/overview)
+- An in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)
 - [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/overview)
 - [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/overview)
 - [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction)
@@ -69,6 +70,7 @@ All samples implement the same Vacation Planner web app. They only vary the unde
 | ------ | ----------- |
 | [web-app-sql-database](samples/web-app-sql-database/) | Stores activities in an [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview), connecting with a SQL login over TDS. |
 | [web-app-postgresql-flexible-server](samples/web-app-postgresql-flexible-server/) | Stores activities in an [Azure Database for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview). |
+| [web-app-in-cluster-postgresql](samples/web-app-in-cluster-postgresql/) | Stores activities in an in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) (a primary with two streaming-replica standbys), instead of a managed Azure data service. |
 | [web-app-cosmosdb-mongodb-api](samples/web-app-cosmosdb-mongodb-api/) | Stores activities in a collection of an [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/introduction) account. |
 | [web-app-cosmosdb-nosql-api](samples/web-app-cosmosdb-nosql-api/) | Stores activities in a container of an [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/) account. |
 | [web-app-storage-account](samples/web-app-storage-account/) | Stores activities in an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) container, using a connection string. |
