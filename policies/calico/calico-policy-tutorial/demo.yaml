@@ -1,0 +1,74 @@
+# This manifest deploys the demo workloads used by the Calico policy tutorial:
+#   - the advanced-policy-demo namespace
+#   - a plain NGINX deployment and ClusterIP service listening on port 80
+#   - a long-running busybox "access" pod used to probe connectivity
+#
+# The tutorial normally creates the NGINX deployment with imperative kubectl
+# commands and runs an interactive busybox pod. Here we declare everything as
+# manifests, and keep the busybox pod alive with a sleep loop so the connectivity
+# checks can be run non-interactively with "kubectl exec".
+#
+# For more information, see:
+# https://docs.tigera.io/calico/latest/network-policy/get-started/calico-policy/calico-policy-tutorial
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: advanced-policy-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: advanced-policy-demo
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        # The "app == 'nginx'" Calico selector in allow-nginx-ingress.yaml
+        # matches this label.
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: advanced-policy-demo
+  labels:
+    app: nginx
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: nginx
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: access
+  namespace: advanced-policy-demo
+  labels:
+    # The "run == 'access'" Calico selector used by the egress and ingress
+    # policies matches this label.
+    run: access
+spec:
+  containers:
+    - name: access
+      image: busybox
+      # Keep the pod running so it can be used to test policy access with
+      # "kubectl exec" throughout the tutorial.
+      command: ["sh", "-c", "sleep infinity"]

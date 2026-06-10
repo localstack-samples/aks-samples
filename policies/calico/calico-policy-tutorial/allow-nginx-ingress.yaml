@@ -1,0 +1,26 @@
+# Allow ingress traffic to NGINX from the busybox "access" pod.
+#
+# This namespaced Calico NetworkPolicy (projectcalico.org/v3) selects the NGINX
+# pods (app=nginx) and permits inbound (Ingress) connections, but only from pods
+# labelled run=access. This punches a hole in the default-deny for ingress to
+# NGINX, scoped to the "access" pod as the source.
+#
+# Combined with allow-busybox-egress.yaml (egress from access) this completes the
+# path: the access pod can now reach the NGINX service, while everything else
+# remains denied by the default-deny GlobalNetworkPolicy.
+#
+# For more information, see:
+# https://docs.tigera.io/calico/latest/reference/resources/networkpolicy
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-nginx-ingress
+  namespace: advanced-policy-demo
+spec:
+  selector: app == 'nginx'
+  types:
+    - Ingress
+  ingress:
+    - action: Allow
+      source:
+        selector: run == 'access'
