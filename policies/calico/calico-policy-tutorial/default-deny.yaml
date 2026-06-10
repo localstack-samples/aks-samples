@@ -1,0 +1,25 @@
+# Default-deny GlobalNetworkPolicy.
+#
+# This is a Calico-only resource (it has no Kubernetes NetworkPolicy equivalent):
+# a GlobalNetworkPolicy is NOT namespaced and applies to every pod that matches
+# the selector across the whole cluster. A single Kubernetes NetworkPolicy would
+# have to be recreated in every namespace to achieve the same effect.
+#
+# It implements a zero-trust posture: once applied, any Ingress or Egress traffic
+# that is not explicitly allowed by another policy is denied.
+#
+# The kube-system, calico-system and calico-apiserver namespaces are excluded so
+# the default deny does not break Kubernetes itself or Calico's own components.
+#
+# For more information, see:
+# https://docs.tigera.io/calico/latest/reference/resources/globalnetworkpolicy
+# https://docs.tigera.io/calico/latest/network-policy/adopt-zero-trust
+apiVersion: projectcalico.org/v3
+kind: GlobalNetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  selector: projectcalico.org/namespace not in {'kube-system', 'calico-system', 'calico-apiserver'}
+  types:
+    - Ingress
+    - Egress

@@ -1,0 +1,27 @@
+# Allow all egress traffic from the busybox "access" pod.
+#
+# This is a namespaced Calico NetworkPolicy (projectcalico.org/v3). It selects the
+# pod labelled run=access and permits all of its outbound (Egress) connections,
+# overriding the default-deny for egress on that pod only.
+#
+# For a production workload you would normally make this rule far more restrictive
+# and only allow egress to the specific destinations the workload needs. Because
+# this is just a probe pod, we allow all egress so we can explore what is reachable.
+#
+# Note: allowing egress from "access" lets it reach the internet (e.g. google.com),
+# but it still cannot reach the NGINX pod until ingress to NGINX is allowed too
+# (see allow-nginx-ingress.yaml).
+#
+# For more information, see:
+# https://docs.tigera.io/calico/latest/reference/resources/networkpolicy
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-busybox-egress
+  namespace: advanced-policy-demo
+spec:
+  selector: run == 'access'
+  types:
+    - Egress
+  egress:
+    - action: Allow
