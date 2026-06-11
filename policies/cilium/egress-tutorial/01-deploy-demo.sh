@@ -25,5 +25,9 @@ fi
 # Deploy the demo
 kubectl apply -n $namespace -f $template
 
+# Wait for the pod to be ready before running the connectivity checks
+echo "Waiting for the mediabot pod to be ready..."
+kubectl wait --namespace $namespace --for=condition=Ready pod/mediabot --timeout=120s
+
 # Check the status of the pods and services
 kubectl get pods,svc -n $namespace
