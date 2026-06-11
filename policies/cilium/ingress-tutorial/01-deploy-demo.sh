@@ -25,5 +25,11 @@ fi
 # Deploy the demo
 kubectl apply -n $namespace -f $template
 
+# Wait for the workloads to be ready before running the connectivity checks
+echo "Waiting for the workloads to be ready..."
+kubectl wait --namespace $namespace --for=condition=Available deployment/deathstar --timeout=120s
+kubectl wait --namespace $namespace --for=condition=Ready pod/tiefighter --timeout=120s
+kubectl wait --namespace $namespace --for=condition=Ready pod/xwing --timeout=120s
+
 # Check the status of the pods and services
 kubectl get pods,svc -n $namespace

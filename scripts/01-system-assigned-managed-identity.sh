@@ -3,7 +3,7 @@
 # Variables
 
 # Azure Kubernetes Service (AKS) cluster
-prefix="local" # local, poseidon, hades, demeter, apollo, artemis, ares, athena, hephaestus, hermes
+prefix="local" # zeus, poseidon, hades, demeter, apollo, artemis, ares, athena, hephaestus, hermes
 suffix="test"
 aks_cluster_name="$prefix-aks-$suffix"
 resource_group_name="$prefix-rg"
@@ -46,12 +46,6 @@ ssh_key_value="$HOME/.ssh/id_rsa.pub"
 windows_admin_username="azadmin"
 windows_admin_password="Trustno123456!"
 
-# Network policy
-network_plugin="azure" #azure, kubenet, none
-network_policy="azure" #calico, azure, cilium, none
-network_plugin_mode="overlay"
-network_dataplane="azure" #cilium, azure
-
 # Node count variables
 node_count=3
 min_count=3
@@ -76,61 +70,94 @@ RETRY_COUNT=3
 SLEEP=5
 
 # Extensions to register
-install_extensions=0
-aks_extensions=("ManagedGatewayAPIPreview")
+install_extensions_and_features=0
+aks_features=("ManagedGatewayAPIPreview")
 registering_extensions=()
 ok=0
 
+# Print the menu
+echo "===================================="
+echo "Run Docker Container (1-3): "
+echo "===================================="
+options=(
+  "Azure Network Plugin + Azure Network Policy"
+  "Azure Network Plugin + Cilium Network Policy"
+  "Azure Network Plugin + Calico Network Policy"
+  "Quit"
+)
+name=""
+# Select an option
+COLUMNS=0
+select option in "${options[@]}"; do
+  case $option in
+  "Azure Network Plugin + Azure Network Policy")
+    # Network policy
+    network_plugin="azure" #azure, kubenet, none
+    network_policy="azure" #calico, azure, cilium, none
+    network_plugin_mode="overlay"
+    network_dataplane="azure" #cilium, azure
+    break
+    ;;
+  "Azure Network Plugin + Cilium Network Policy")
+    # Network policy
+    network_plugin="azure"  #azure, kubenet, none
+    network_policy="cilium" #calico, azure, cilium, none
+    network_plugin_mode="overlay"
+    network_dataplane="cilium" #cilium, azure
+    break
+    ;;
+  "Azure Network Plugin + Calico Network Policy")
+    # Network policy
+    network_plugin="azure"  #azure, kubenet, none
+    network_policy="calico" #calico, azure, cilium, none
+    network_plugin_mode="overlay"
+    network_dataplane="azure" #cilium, azure
+    break
+    ;;
+  "Quit")
+    exit
+    ;;
+  *) echo "invalid option $REPLY" ;;
+  esac
+done
+
 # Install aks-preview Azure extension
-if [[ $install_extensions == 1 ]]; then
-  echo "Checking if [aks-preview] extension is already installed..."
-  az extension show --name aks-preview &>/dev/null
+if [[ $install_extensions_and_features == 1 ]]; then
+  echo "Adding or upgrading [aks-preview] extension..."
+  az extension add --upgrade --name aks-preview &>/dev/null
 
   if [[ $? == 0 ]]; then
-    echo "[aks-preview] extension is already installed"
-
-    # Update the extension to make sure you have the latest version installed
-    echo "Updating [aks-preview] extension..."
-    az extension update --name aks-preview &>/dev/null
+    echo "[aks-preview] extension successfully installed or upgraded"
   else
-    echo "[aks-preview] extension is not installed. Installing..."
-
-    # Install aks-preview extension
-    az extension add --name aks-preview 1>/dev/null
-
-    if [[ $? == 0 ]]; then
-      echo "[aks-preview] extension successfully installed"
-    else
-      echo "Failed to install [aks-preview] extension"
-      exit
-    fi
+    echo "Failed to install or upgrade [aks-preview] extension"
+    exit
   fi
 
   # Registering AKS features
-  for aks_extension in "${aks_extensions[@]}"; do
-    echo "Checking if [$aks_extension] extension is already registered..."
-    extension=$(az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/$aks_extension') && @.properties.state == 'Registered'].{Name:name}" --output tsv)
+  for aks_feature in "${aks_features[@]}"; do
+    echo "Checking if [$aks_feature] extension is already registered..."
+    extension=$(az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/$aks_feature') && @.properties.state == 'Registered'].{Name:name}" --output tsv)
     if [[ -z $extension ]]; then
-      echo "[$aks_extension] extension is not registered."
-      echo "Registering [$aks_extension] extension..."
+      echo "[$aks_feature] extension is not registered."
+      echo "Registering [$aks_feature] extension..."
       az feature register \
-        --name "$aks_extension" \
+        --name "$aks_feature" \
         --namespace Microsoft.ContainerService \
         --only-show-errors 1>/dev/null
-      registering_extensions+=("$aks_extension")
+      registering_extensions+=("$aks_feature")
       ok=1
     else
-      echo "[$aks_extension] extension is already registered."
+      echo "[$aks_feature] extension is already registered."
     fi
   done
   if [[ ${#registering_extensions[@]} -gt 0 ]]; then
     echo "${registering_extensions[@]}"
   fi
   delay=1
-  for aks_extension in "${registering_extensions[@]}"; do
-    echo -n "Checking if [$aks_extension] extension is already registered..."
+  for aks_feature in "${registering_extensions[@]}"; do
+    echo -n "Checking if [$aks_feature] extension is already registered..."
     while true; do
-      extension=$(az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/$aks_extension') && @.properties.state == 'Registered'].{Name:name}" --output tsv)
+      extension=$(az feature list -o table --query "[?contains(name, 'Microsoft.ContainerService/$aks_feature') && @.properties.state == 'Registered'].{Name:name}" --output tsv)
       if [[ -z $extension ]]; then
         echo -n "."
         sleep $delay
@@ -432,6 +459,7 @@ if [[ $? != 0 ]]; then
     --pod-cidr $pod_cidr \
     --dns-service-ip $dns_service_ip \
     --service-cidr $service_cidr \
+		--enable-acns \
     --enable-gateway-api \
     --enable-managed-identity \
     --enable-workload-identity \
