@@ -69,6 +69,7 @@ All samples implement the same Vacation Planner web app. They only vary the unde
 | Sample | Description |
 | ------ | ----------- |
 | [web-app-sql-database](samples/web-app-sql-database/) | Stores activities in an [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview), connecting with a SQL login over TDS. |
+| [web-app-mysql-flexible-server](samples/web-app-mysql-flexible-server/) | Stores activities in an [Azure Database for MySQL flexible server](https://learn.microsoft.com/en-us/azure/mysql/flexible-server/overview). |
 | [web-app-postgresql-flexible-server](samples/web-app-postgresql-flexible-server/) | Stores activities in an [Azure Database for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview). |
 | [web-app-in-cluster-postgresql](samples/web-app-in-cluster-postgresql/) | Stores activities in an in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) (a primary with two streaming-replica standbys), instead of a managed Azure data service. |
 | [web-app-cosmosdb-mongodb-api](samples/web-app-cosmosdb-mongodb-api/) | Stores activities in a collection of an [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/introduction) account. |

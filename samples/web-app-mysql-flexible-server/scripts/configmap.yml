@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vacation-planner-mysql-config
+  namespace: vacation-planner-mysql
+  labels:
+    app: vacation-planner-mysql
+data:
+  MYSQL_HOST: ""
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: ""
+  MYSQL_USER: ""
+  MYSQL_SSL: "true"
+  LOGIN_NAME: "paolo"
+  DEBUG: "false"
