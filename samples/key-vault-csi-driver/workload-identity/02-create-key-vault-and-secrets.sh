@@ -42,6 +42,7 @@ if [[ $? != 0 ]]; then
     --enabled-for-deployment \
     --enabled-for-disk-encryption \
     --enabled-for-template-deployment \
+    --enable-rbac-authorization true \
     --sku $KEY_VAULT_SKU 1>/dev/null
 
   if [[ $? == 0 ]]; then

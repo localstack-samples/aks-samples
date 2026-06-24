@@ -92,8 +92,8 @@ fi
 echo "Ensuring firewall rule [$FIREWALL_RULE_NAME] exists on PostgreSQL flexible server [$PG_SERVER_NAME]..."
 az postgres flexible-server firewall-rule create \
 	--resource-group "$RESOURCE_GROUP_NAME" \
-	--server-name "$PG_SERVER_NAME" \
-	--name "$FIREWALL_RULE_NAME" \
+	--name "$PG_SERVER_NAME" \
+	--rule-name "$FIREWALL_RULE_NAME" \
 	--start-ip-address 0.0.0.0 \
 	--end-ip-address 255.255.255.255 \
 	--only-show-errors 1>/dev/null
@@ -101,7 +101,7 @@ az postgres flexible-server firewall-rule create \
 # Create the PostgreSQL database
 echo "Checking if PostgreSQL database [$PG_DATABASE_NAME] exists..."
 az postgres flexible-server db show \
-	--name "$PG_DATABASE_NAME" \
+	--database-name "$PG_DATABASE_NAME" \
 	--server-name "$PG_SERVER_NAME" \
 	--resource-group "$RESOURCE_GROUP_NAME" \
 	--only-show-errors &>/dev/null
@@ -109,7 +109,7 @@ az postgres flexible-server db show \
 if [[ $? != 0 ]]; then
 	echo "Creating PostgreSQL database [$PG_DATABASE_NAME]..."
 	az postgres flexible-server db create \
-		--name "$PG_DATABASE_NAME" \
+		--database-name "$PG_DATABASE_NAME" \
 		--server-name "$PG_SERVER_NAME" \
 		--resource-group "$RESOURCE_GROUP_NAME" \
 		--charset UTF8 \

@@ -749,6 +749,85 @@ else
 	fi
 fi
 
+# Retrieve the objectId of the Azure Key Vault Secrets Provider identity
+kv_secret_provider_managed_identity_object_id=$(az aks show \
+	--resource-group $resource_group_name \
+	--name $aks_cluster_name \
+	--query addonProfiles.azureKeyvaultSecretsProvider.identity.objectId \
+	--output tsv \
+	--only-show-errors 2>/dev/null)
+
+if [[ -n $kv_secret_provider_managed_identity_object_id ]]; then
+	echo "Successfully retrieved the objectId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+else
+	echo "Failed to retrieve the objectId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+	exit
+fi
+
+# Retrieve the resourceId of the Azure Key Vault Secrets Provider identity
+kv_secret_provider_managed_identity_resource_id=$(az aks show \
+	--resource-group $resource_group_name \
+	--name $aks_cluster_name \
+	--query addonProfiles.azureKeyvaultSecretsProvider.identity.resourceId \
+	--output tsv \
+	--only-show-errors 2>/dev/null)
+
+if [[ -n $kv_secret_provider_managed_identity_resource_id ]]; then
+	echo "Successfully retrieved the resourceId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+else
+	echo "Failed to retrieve the resourceId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+	exit
+fi
+
+# Get the name of the Azure Key Vault Secrets Provider identity from the resourceId
+kv_secret_provider_managed_identity_name=$(basename $kv_secret_provider_managed_identity_resource_id)
+
+# Assign the Key Vault Administrator role to the managed identity on the node resource group
+role="Key Vault Administrator"
+managed_identity_name="$kv_secret_provider_managed_identity_name"
+principal_id="$kv_secret_provider_managed_identity_object_id"
+scope_id="$key_vault_id"
+scope_name="$key_vault_name"
+scope_type="key vault"
+echo "Checking if the [$managed_identity_name] managed identity has the [$role] role assignment on the [$scope_name] $scope_type..."
+current=$(az role assignment list \
+	--assignee "$principal_id" \
+	--scope "$scope_id" \
+	--query "[?roleDefinitionName=='$role'].roleDefinitionName" \
+	--output tsv 2>/dev/null)
+
+if [[ $current == "$role" ]]; then
+	echo "Managed identity [$managed_identity_name] already has the [$role] role assignment on the [$scope_name] $scope_type"
+else
+	echo "Managed identity [$managed_identity_name] does not have the [$role] role assignment on the [$scope_name] $scope_type"
+	echo "Creating role assignment: assigning [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type..."
+	ATTEMPT=1
+	while [ $ATTEMPT -le $RETRY_COUNT ]; do
+		echo "Attempt $ATTEMPT of $RETRY_COUNT to assign role..."
+		az role assignment create \
+			--assignee "$principal_id" \
+			--role "$role" \
+			--scope "$scope_id" 1>/dev/null
+
+		if [[ $? == 0 ]]; then
+			break
+		else
+			if [ $ATTEMPT -lt $RETRY_COUNT ]; then
+				echo "Role assignment failed. Waiting [$SLEEP] seconds before retry..."
+				sleep $SLEEP
+			fi
+			ATTEMPT=$((ATTEMPT + 1))
+		fi
+	done
+
+	if [[ $? == 0 ]]; then
+		echo "Successfully assigned [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type"
+	else
+		echo "Failed to assign [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type"
+		exit 1
+	fi
+fi
+
 # Use the following command to configure kubectl to connect to the new Kubernetes cluster
 echo "Getting access credentials configure kubectl to connect to the [$aks_cluster_name] AKS cluster..."
 az aks get-credentials \

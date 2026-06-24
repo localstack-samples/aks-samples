@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 # For more information, see:
 # https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-driver
