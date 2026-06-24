@@ -19,5 +19,5 @@ FILES=$(kubectl exec $POD -n $NAMESPACE -- ls /mnt/secrets)
 for FILE in ${FILES[@]}
 do
     echo "Retrieving [$FILE] secret from [$KEY_VAULT_NAME] key vault..."
-    kubectl exec $POD --stdin --tty -n $NAMESPACE -- cat /mnt/secrets/$FILE;echo;sleep 1
+    kubectl exec "$POD" -n "$NAMESPACE" -- cat "/mnt/secrets/$FILE";echo;sleep 1
 done 

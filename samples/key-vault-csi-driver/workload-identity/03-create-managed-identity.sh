@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 # Variables
 source ./00-variables.sh
@@ -98,9 +98,8 @@ else
   exit
 fi
 
-# Assign the Key Vault Administrator role to the managed identity on the node resource group
-ROLE="Key Vault Administrator"
-PRINCIPAL_ID="$PRINCIPAL_ID"
+# Assign the Key Vault Secrets User role to the managed identity on the key vault
+ROLE="Key Vault Secrets User"
 SCOPE_ID="$KEY_VAULT_ID"
 SCOPE_NAME="$KEY_VAULT_NAME"
 SCOPE_TYPE="key vault"
@@ -204,6 +203,10 @@ if [[ $? != 0 ]]; then
   # Show OIDC Issuer URL
   if [[ -n $AKS_OIDC_ISSUER_URL ]]; then
     echo "The OIDC Issuer URL of the [$AKS_NAME] cluster is [$AKS_OIDC_ISSUER_URL]"
+  else
+    echo "Failed to retrieve the OIDC Issuer URL of the [$AKS_NAME] cluster"
+    echo "Make sure the cluster was created with the OIDC issuer enabled (az aks update --enable-oidc-issuer)"
+    exit 1
   fi
 
   echo "Creating [$FEDERATED_IDENTITY_NAME] federated identity credential in the [$AKS_RESOURCE_GROUP_NAME] resource group..."

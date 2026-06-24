@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 # Variables
 source ./00-variables.sh
@@ -52,8 +52,8 @@ fi
 # Get the name of the Azure Key Vault Secrets Provider identity from the resourceId
 KV_IDENTITY_NAME=$(basename $KV_IDENTITY_RESOURCE_ID)
 
-# Assign the Key Vault Administrator role to the managed identity on the node resource group
-ROLE="Key Vault Administrator"
+# Assign the Key Vault Secrets User role to the managed identity on the key vault
+ROLE="Key Vault Secrets User"
 MANAGED_IDENTITY_NAME="$KV_IDENTITY_NAME"
 PRINCIPAL_ID="$KV_IDENTITY_OBJECT_ID"
 SCOPE_ID="$KEY_VAULT_ID"
