@@ -13,6 +13,9 @@ os_disk_size=50
 os_disk_type="Ephemeral"
 system_node_pool_name="system"
 
+# Azure Key Vault
+key_vault_name="$prefix-kv-$suffix"
+
 # Azure Container Registry
 acr_name="${prefix}acr${suffix}"
 acr_sku="Basic"
@@ -47,8 +50,8 @@ windows_admin_username="azadmin"
 windows_admin_password="Trustno123456!"
 
 # Node count variables
-node_count=3
-min_count=3
+node_count=1
+min_count=1
 max_count=3
 max_pods=100
 
@@ -57,8 +60,8 @@ user_node_pool_name="user"
 vm_size="Standard_D4ds_v5" # Standard_D4ds_v4
 os_type="Linux"
 mode="User"
-node_pool_node_count=3
-node_pool_min_count=3
+node_pool_node_count=1
+node_pool_min_count=1
 node_pool_max_count=3
 node_pool_max_pods=100
 
@@ -198,6 +201,48 @@ if [[ $? != 0 ]]; then
   fi
 else
   echo "[$resource_group_name] resource group already exists in the [$subscription_name] subscription"
+fi
+
+# Create Key Vault
+echo "Checking if [$key_vault_name] key vault actually exists in the [$resource_group_name] resource group..."
+az keyvault show \
+	--name $key_vault_name \
+	--resource-group $resource_group_name \
+	--only-show-errors &>/dev/null
+
+if [[ $? != 0 ]]; then
+	echo "No [$key_vault_name] key vault actually exists in the [$resource_group_name] resource group"
+	echo "Creating Key Vault [$key_vault_name]..."
+	az keyvault create \
+		--name "$key_vault_name" \
+		--resource-group "$resource_group_name" \
+		--location "$location" \
+		--enable-rbac-authorization true \
+		--only-show-errors 1>/dev/null
+
+	if [ $? -eq 0 ]; then
+		echo "Key Vault [$key_vault_name] created successfully."
+	else
+		echo "Failed to create Key Vault [$key_vault_name]."
+		exit 1
+	fi
+else
+	echo "[$key_vault_name] key vault already exists in the [$resource_group_name] resource group"
+fi
+
+# Retrieve the Key Vault id
+key_vault_id=$(az keyvault show \
+	--name $key_vault_name \
+	--resource-group $resource_group_name \
+	--query id \
+	--output tsv \
+	--only-show-errors 2>/dev/null)
+
+if [[ -n $key_vault_id ]]; then
+	echo "Successfully retrieved the id for the [$key_vault_name] key vault"
+else
+	echo "Failed to retrieve the id for the [$key_vault_name] key vault"
+	exit
 fi
 
 # Check if log analytics workspace exists and retrieve its resource id
@@ -450,7 +495,7 @@ if [[ $? != 0 ]]; then
     --windows-admin-username $windows_admin_username \
     --windows-admin-password $windows_admin_password \
     --node-vm-size $node_size \
-    --enable-addons monitoring \
+    --enable-addons monitoring,azure-keyvault-secrets-provider \
     --workspace-resource-id $workspace_resource_id \
     --network-dataplane $network_dataplane \
     --network-policy $network_policy \
@@ -580,6 +625,97 @@ else
   else
     echo "Failed to create the [$user_node_pool_name] node pool in the [$aks_cluster_name] AKS cluster"
   fi
+fi
+
+# Get the objectId of the Azure Key Vault Secrets Provider identity
+kv_secret_provider_managed_identity_object_id=$(az aks show \
+  --resource-group $resource_group_name \
+  --name $aks_cluster_name \
+  --query addonProfiles.azureKeyvaultSecretsProvider.identity.objectId \
+  -o tsv)
+
+if [[ -n $kv_secret_provider_managed_identity_object_id ]]; then
+  echo "Successfully retrieved the objectId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+else
+  echo "Failed to retrieve the objectId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+  exit
+fi
+
+# Get the clientId of the Azure Key Vault Secrets Provider identity
+kv_secret_provider_managed_identity_client_id=$(az aks show \
+  --resource-group $resource_group_name \
+  --name $aks_cluster_name \
+  --query addonProfiles.azureKeyvaultSecretsProvider.identity.clientId \
+  -o tsv)
+
+if [[ -n $kv_secret_provider_managed_identity_client_id ]]; then
+  echo "Successfully retrieved the clientId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+else
+  echo "Failed to retrieve the clientId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+  exit
+fi
+
+# Get the resourceId of the Azure Key Vault Secrets Provider identity
+kv_secret_provider_managed_identity_resource_id=$(az aks show \
+  --resource-group $resource_group_name \
+  --name $aks_cluster_name \
+  --query addonProfiles.azureKeyvaultSecretsProvider.identity.resourceId \
+  -o tsv)
+
+if [[ -n $kv_secret_provider_managed_identity_resource_id ]]; then
+  echo "Successfully retrieved the resourceId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+else
+  echo "Failed to retrieve the resourceId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
+  exit
+fi
+
+# Get the name of the Azure Key Vault Secrets Provider identity from the resourceId
+kv_secret_provider_managed_identity_name=$(basename $kv_secret_provider_managed_identity_resource_id)
+
+# Assign the Key Vault Administrator role to the managed identity on the node resource group
+role="Key Vault Administrator"
+managed_identity_name="$kv_secret_provider_managed_identity_name"
+principal_id="$kv_secret_provider_managed_identity_object_id"
+scope_id="$key_vault_id"
+scope_name="$key_vault_name"
+scope_type="key vault"
+echo "Checking if the [$managed_identity_name] managed identity has the [$role] role assignment on the [$scope_name] $scope_type..."
+current=$(az role assignment list \
+	--assignee "$principal_id" \
+	--scope "$scope_id" \
+	--query "[?roleDefinitionName=='$role'].roleDefinitionName" \
+	--output tsv 2>/dev/null)
+
+if [[ $current == "$role" ]]; then
+	echo "Managed identity [$managed_identity_name] already has the [$role] role assignment on the [$scope_name] $scope_type"
+else
+	echo "Managed identity [$managed_identity_name] does not have the [$role] role assignment on the [$scope_name] $scope_type"
+	echo "Creating role assignment: assigning [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type..."
+	ATTEMPT=1
+	while [ $ATTEMPT -le $RETRY_COUNT ]; do
+		echo "Attempt $ATTEMPT of $RETRY_COUNT to assign role..."
+		az role assignment create \
+			--assignee "$principal_id" \
+			--role "$role" \
+			--scope "$scope_id" 1>/dev/null
+
+		if [[ $? == 0 ]]; then
+			break
+		else
+			if [ $ATTEMPT -lt $RETRY_COUNT ]; then
+				echo "Role assignment failed. Waiting [$SLEEP] seconds before retry..."
+				sleep $SLEEP
+			fi
+			ATTEMPT=$((ATTEMPT + 1))
+		fi
+	done
+
+	if [[ $? == 0 ]]; then
+		echo "Successfully assigned [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type"
+	else
+		echo "Failed to assign [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type"
+		exit 1
+	fi
 fi
 
 # Use the following command to configure kubectl to connect to the new Kubernetes cluster

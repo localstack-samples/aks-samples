@@ -76,6 +76,7 @@ All samples implement the same Vacation Planner web app. They only vary the unde
 | [web-app-cosmosdb-nosql-api](samples/web-app-cosmosdb-nosql-api/) | Stores activities in a container of an [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/) account. |
 | [web-app-storage-account](samples/web-app-storage-account/) | Stores activities in an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) container, using a connection string. |
 | [web-app-managed-identity](samples/web-app-managed-identity/) | Stores activities in an Azure Blob Storage container, authenticating with [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) (federated credential plus workload identity) instead of a secret, and optionally exposes the app through the Gateway API with a managed TLS certificate. |
+| [key-vault-csi-driver](samples/key-vault-csi-driver/) | Mounts secrets from [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/general/overview) into a pod with the [Azure Key Vault provider for Secrets Store CSI Driver](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-driver), demonstrating both the Microsoft Entra Workload ID and the user-assigned managed identity access modes. |
 
 Each sample folder follows the same layout:
 
