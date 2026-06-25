@@ -98,8 +98,9 @@ else
   exit
 fi
 
-# Assign the Key Vault Secrets User role to the managed identity on the key vault
-ROLE="Key Vault Secrets User"
+# Assign the Key Vault Administrator role to the managed identity on the node resource group
+ROLE="Key Vault Administrator"
+PRINCIPAL_ID="$PRINCIPAL_ID"
 SCOPE_ID="$KEY_VAULT_ID"
 SCOPE_NAME="$KEY_VAULT_NAME"
 SCOPE_TYPE="key vault"
