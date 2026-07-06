@@ -100,6 +100,15 @@ Then browse to [http://localhost:8080](http://localhost:8080). The exact namespa
 
 Alternatively, you can use a terminal UI such as [k9s](https://k9scli.io/) to select the service and start a port-forward interactively (press `<shift-f>` on a selected service or pod).
 
+## Tutorials
+
+Beyond the Vacation Planner samples, the repository includes standalone tutorials that exercise specific AKS capabilities. Unlike the samples above, they do not deploy the web app.
+
+| Tutorial | Description |
+| ------ | ----------- |
+| [policies](policies/) | Kubernetes network policy tutorials that enforce zero-trust traffic control with [Calico](https://docs.tigera.io/calico/latest/about/) and [Cilium](https://docs.cilium.io/): cluster-wide default-deny, DNS-aware (FQDN) egress, and L3/L4/L7 ingress. |
+| [ccm](ccm/scripts/) | Exercises the [Azure cloud controller manager](https://cloud-provider-azure.sigs.k8s.io/) load-balancer reconcile on the emulator: public and internal `Service` type `LoadBalancer`, `loadBalancerSourceRanges` NSG rules, the nodeIP backend-pool variant, and an NGINX ingress controller. |
+
 ## Tools
 
 The following tools are useful when working with these samples:
