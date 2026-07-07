@@ -21,8 +21,7 @@ if [[ -z $NODE_RESOURCE_GROUP ]]; then
   exit 1
 fi
 
-# Enable the Managed Gateway API only when it is not already enabled (the query falls back across
-# JMESPath key casings, which vary across CLI payload versions)
+# Enable the Managed Gateway API only when it is not already enabled
 INSTALLATION=$(az aks show \
   --name $AKS_NAME \
   --resource-group $AKS_RESOURCE_GROUP_NAME \
