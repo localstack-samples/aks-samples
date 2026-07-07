@@ -17,7 +17,7 @@ NODE_RESOURCE_GROUP=$(az aks show \
   --only-show-errors 2>/dev/null)
 if [[ -z $NODE_RESOURCE_GROUP ]]; then
   echo "Could not resolve the node resource group for the [$AKS_NAME] AKS cluster"
-  echo "Create the cluster first with /home/paolo/azure/aks/scripts/01-user-assigned-managed-identity.sh"
+  echo "Create the cluster first with scripts/01-user-assigned-managed-identity.sh"
   exit 1
 fi
 
