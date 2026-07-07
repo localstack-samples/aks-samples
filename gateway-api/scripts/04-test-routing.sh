@@ -11,10 +11,14 @@ source ./00-variables.sh
 
 # Check whether jq is installed (used to pretty-print the echo-server response)
 if ! command -v jq &>/dev/null; then
-	echo "The [jq] command is required to pretty-print the echo-server response"
-	
-	# Install jq on Ubuntu/Debian: sudo apt install -y jq
-	sudo apt install -y jq
+  echo "The [jq] command is required to pretty-print the echo-server response"
+
+  if command -v apt-get &>/dev/null; then
+    sudo apt-get update -y && sudo apt-get install -y jq
+  else
+    echo "Please install [jq] (https://jqlang.github.io/jq/) and re-run this script"
+    exit 1
+  fi
 fi
 
 # Discover the NGF data-plane Service: NGF provisions it in the Gateway's namespace when the
