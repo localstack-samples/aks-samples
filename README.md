@@ -108,6 +108,7 @@ Beyond the Vacation Planner samples, the repository includes standalone tutorial
 | ------ | ----------- |
 | [policies](policies/) | Kubernetes network policy tutorials that enforce zero-trust traffic control with [Calico](https://docs.tigera.io/calico/latest/about/) and [Cilium](https://docs.cilium.io/): cluster-wide default-deny, DNS-aware (FQDN) egress, and L3/L4/L7 ingress. |
 | [ccm](ccm/scripts/) | Exercises the [Azure cloud controller manager](https://cloud-provider-azure.sigs.k8s.io/) load-balancer reconcile on the emulator: public and internal `Service` type `LoadBalancer`, `loadBalancerSourceRanges` NSG rules, the nodeIP backend-pool variant, and an NGINX ingress controller. |
+| [gateway-api](gateway-api/scripts/) | Enables the [Managed Gateway API](https://learn.microsoft.com/en-us/azure/aks/managed-gateway-api) CRDs on the cluster, installs [NGINX Gateway Fabric](https://docs.nginx.com/nginx-gateway-fabric/) as the implementation, and routes traffic to an echo-server backend through a `Gateway` and `HTTPRoute`. |
 
 ## Tools
 
