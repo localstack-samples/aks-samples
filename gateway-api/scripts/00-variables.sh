@@ -2,7 +2,7 @@
 #
 # Source this file from every test script with: source ./00-variables.sh
 #
-# The AKS cluster is created by /home/paolo/azure/aks/scripts/01-user-assigned-managed-identity.sh;
+# The AKS cluster is created by scripts/01-user-assigned-managed-identity.sh;
 # these values MUST match that script (prefix "local", suffix "test", location "ItalyNorth") so the
 # tests target the cluster it creates instead of standing up their own.
 
