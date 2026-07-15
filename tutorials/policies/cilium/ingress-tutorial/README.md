@@ -18,7 +18,7 @@ An L7 policy adds an HTTP filter so even empire ships may only call `POST /v1/re
 
 ## Prerequisites
 
-- An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).
+- An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) configured for the cluster.
 - The `cilium` and `hubble` CLIs, installed by `00-install-cilium-hubble-cli.sh` (needs `sudo`). Several scripts exec into the `cilium-agent` pod (`k8s-app=cilium` in `kube-system`).
 

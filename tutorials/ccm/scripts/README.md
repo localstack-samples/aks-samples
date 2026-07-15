@@ -10,7 +10,7 @@ Because the emulated load balancer has no real dataplane, the `EXTERNAL-IP` is a
 
 ## Prerequisites
 
-- An AKS cluster reachable through `kubectl`, created by [scripts/01-user-assigned-managed-identity.sh](../../scripts/01-user-assigned-managed-identity.sh). The scripts do not create the cluster; they source `./00-variables.sh`, whose values must match it (`local-aks-test` in resource group `local-rg`, location `ItalyNorth`).
+- An AKS cluster reachable through `kubectl`, created by [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh). The scripts do not create the cluster; they source `./00-variables.sh`, whose values must match it (`local-aks-test` in resource group `local-rg`, location `ItalyNorth`).
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/) (`az`) and [kubectl](https://kubernetes.io/docs/tasks/tools/).
 - [Helm](https://helm.sh/) for `05-test-nginx-ingress-controller.sh`.
 

@@ -1,6 +1,6 @@
 ## Kubernetes Network Policy Tutorials
 
-[Kubernetes network policies](https://kubernetes.io/docs/concepts/services-networking/network-policies/) control which pods may talk to each other and to the outside world. On AKS the rules are enforced by a policy engine tied to the cluster's data plane, so the engine is chosen when the cluster is created: [scripts/01-user-assigned-managed-identity.sh](../scripts/01-user-assigned-managed-identity.sh) offers Azure, Cilium, and Calico network policy in its menu ([AKS network policies](https://learn.microsoft.com/en-us/azure/aks/use-network-policies)).
+[Kubernetes network policies](https://kubernetes.io/docs/concepts/services-networking/network-policies/) control which pods may talk to each other and to the outside world. On AKS the rules are enforced by a policy engine tied to the cluster's data plane, so the engine is chosen when the cluster is created: [scripts/01-user-assigned-managed-identity.sh](../../scripts/01-user-assigned-managed-identity.sh) offers Azure, Cilium, and Calico network policy in its menu ([AKS network policies](https://learn.microsoft.com/en-us/azure/aks/use-network-policies)).
 
 These tutorials each build a policy scenario step by step and verify, from inside probe pods, that allowed traffic flows and everything else is blocked.
 

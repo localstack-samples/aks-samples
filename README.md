@@ -76,7 +76,6 @@ All samples implement the same Vacation Planner web app. They only vary the unde
 | [web-app-cosmosdb-nosql-api](samples/web-app-cosmosdb-nosql-api/) | Stores activities in a container of an [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/) account. |
 | [web-app-storage-account](samples/web-app-storage-account/) | Stores activities in an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) container, using a connection string. |
 | [web-app-managed-identity](samples/web-app-managed-identity/) | Stores activities in an Azure Blob Storage container, authenticating with [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) (federated credential plus workload identity) instead of a secret, and optionally exposes the app through the Gateway API with a managed TLS certificate. |
-| [key-vault-csi-driver](samples/key-vault-csi-driver/) | Mounts secrets from [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/general/overview) into a pod with the [Azure Key Vault provider for Secrets Store CSI Driver](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-driver), demonstrating both the Microsoft Entra Workload ID and the user-assigned managed identity access modes. |
 
 Each sample folder follows the same layout:
 
@@ -106,9 +105,10 @@ Beyond the Vacation Planner samples, the repository includes standalone tutorial
 
 | Tutorial | Description |
 | ------ | ----------- |
-| [policies](policies/) | Kubernetes network policy tutorials that enforce zero-trust traffic control with [Calico](https://docs.tigera.io/calico/latest/about/) and [Cilium](https://docs.cilium.io/): cluster-wide default-deny, DNS-aware (FQDN) egress, and L3/L4/L7 ingress. |
-| [ccm](ccm/scripts/) | Exercises the [Azure cloud controller manager](https://cloud-provider-azure.sigs.k8s.io/) load-balancer reconcile on the emulator: public and internal `Service` type `LoadBalancer`, `loadBalancerSourceRanges` NSG rules, the nodeIP backend-pool variant, and an NGINX ingress controller. |
-| [gateway-api](gateway-api/scripts/) | Enables the [Managed Gateway API](https://learn.microsoft.com/en-us/azure/aks/managed-gateway-api) CRDs on the cluster, installs [NGINX Gateway Fabric](https://docs.nginx.com/nginx-gateway-fabric/) as the implementation, and routes traffic to an echo-server backend through a `Gateway` and `HTTPRoute`. |
+| [policies](tutorials/policies/) | Kubernetes network policy tutorials that enforce zero-trust traffic control with [Calico](https://docs.tigera.io/calico/latest/about/) and [Cilium](https://docs.cilium.io/): cluster-wide default-deny, DNS-aware (FQDN) egress, and L3/L4/L7 ingress. |
+| [ccm](tutorials/ccm/scripts/) | Exercises the [Azure cloud controller manager](https://cloud-provider-azure.sigs.k8s.io/) load-balancer reconcile on the emulator: public and internal `Service` type `LoadBalancer`, `loadBalancerSourceRanges` NSG rules, the nodeIP backend-pool variant, and an NGINX ingress controller. |
+| [gateway-api](tutorials/gateway-api/scripts/) | Enables the [Managed Gateway API](https://learn.microsoft.com/en-us/azure/aks/managed-gateway-api) CRDs on the cluster, installs [NGINX Gateway Fabric](https://docs.nginx.com/nginx-gateway-fabric/) as the implementation, and routes traffic to an echo-server backend through a `Gateway` and `HTTPRoute`. |
+| [key-vault-csi-driver](tutorials/key-vault-csi-driver/) | Mounts secrets from [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/general/overview) into a pod with the [Azure Key Vault provider for Secrets Store CSI Driver](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-driver), demonstrating both the Microsoft Entra Workload ID and the user-assigned managed identity access modes. |
 
 ## Tools
 

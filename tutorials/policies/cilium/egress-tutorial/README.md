@@ -6,7 +6,7 @@ It uses the Cilium [Star Wars demo](https://cilium.io/blog/2017/5/4/demo-may-the
 
 ## Prerequisites
 
-- An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).
+- An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) configured for the cluster.
 - The `cilium` and `hubble` CLIs, installed by `00-install-cilium-hubble-cli.sh` (needs `sudo`). `10-cilium-endpoint-list.sh` execs into the `cilium-agent` pod (`k8s-app=cilium` in `kube-system`).
 
