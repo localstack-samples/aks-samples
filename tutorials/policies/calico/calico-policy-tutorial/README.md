@@ -11,7 +11,7 @@ The demo runs in the `advanced-policy-demo` namespace with an `nginx` Deployment
 
 ## Prerequisites
 
-- An AKS cluster reachable through `kubectl`, created with the **Calico** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Calico).
+- An AKS cluster reachable through `kubectl`, created with the **Calico** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Calico).
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) configured for the cluster.
 - `sudo` access on the host: `00-install-calicoctl.sh` installs the `calicoctl` binary to `/usr/local/bin`.
 

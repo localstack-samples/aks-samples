@@ -8,7 +8,7 @@ This tutorial enables the Managed Gateway API on an AKS cluster (or the [LocalSt
 
 ## Prerequisites
 
-- An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [00-variables.sh](00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, location `ItalyNorth`) must match the cluster the script creates; edit them if you changed the cluster script's `prefix`, `suffix`, or `location`.
+- An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [00-variables.sh](00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, location `ItalyNorth`) must match the cluster the script creates; edit them if you changed the cluster script's `prefix`, `suffix`, or `location`.
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) (`az`) version `2.86.0` or later, which is required for the `--enable-gateway-api` flag.
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) configured for the cluster.
 - [Helm](https://helm.sh/) to install NGINX Gateway Fabric.
