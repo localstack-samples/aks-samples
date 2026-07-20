@@ -124,6 +124,41 @@ select option in "${options[@]}"; do
   esac
 done
 
+# Prompt for a node count (positive integer); an empty answer keeps the default
+read_node_count() {
+  local prompt=$1
+  local default_count=$2
+  local value
+  while true; do
+    read -r -p "$prompt [default: $default_count]: " value
+    value=${value:-$default_count}
+    if [[ $value =~ ^[1-9][0-9]*$ ]]; then
+      echo "$value"
+      return 0
+    fi
+    echo "Invalid value [$value]: please enter a positive integer" >&2
+  done
+}
+
+# Ask for the number of nodes of the system node pool and user node pool
+node_count=$(read_node_count "Enter the number of nodes for the [$system_node_pool_name] system node pool" "$node_count")
+if [[ $node_count -lt $min_count ]]; then
+  min_count=$node_count
+fi
+if [[ $node_count -gt $max_count ]]; then
+  max_count=$node_count
+fi
+echo "The [$system_node_pool_name] system node pool will have [$node_count] nodes (autoscaler min: $min_count, max: $max_count)"
+
+node_pool_node_count=$(read_node_count "Enter the number of nodes for the [$user_node_pool_name] user node pool" "$node_pool_node_count")
+if [[ $node_pool_node_count -lt $node_pool_min_count ]]; then
+  node_pool_min_count=$node_pool_node_count
+fi
+if [[ $node_pool_node_count -gt $node_pool_max_count ]]; then
+  node_pool_max_count=$node_pool_node_count
+fi
+echo "The [$user_node_pool_name] user node pool will have [$node_pool_node_count] nodes (autoscaler min: $node_pool_min_count, max: $node_pool_max_count)"
+
 # Install aks-preview Azure extension
 if [[ $install_extensions_and_features == 1 ]]; then
   echo "Adding or upgrading [aks-preview] extension..."
