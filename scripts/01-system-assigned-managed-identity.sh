@@ -548,7 +548,10 @@ if [[ $? != 0 ]]; then
     --enable-azure-rbac \
     --aad-admin-group-object-ids $aad_profile_admin_group_object_ids \
     --attach-acr $acr_name \
-    --only-show-errors 1>/dev/null
+    --only-show-errors \
+		--tags provisioning=az-cli \
+		--nodepool-tags os_disk_type=$os_disk_type os_type=Linux \
+		--nodepool-labels os_disk_type=$os_disk_type os_type=Linux 1>/dev/null 1>/dev/null
 
   if [[ $? == 0 ]]; then
     echo "[$aks_cluster_name] aks cluster successfully created in the [$resource_group_name] resource group"
@@ -649,7 +652,7 @@ else
     --min-count $node_pool_min_count \
     --max-count $node_pool_max_count \
     --max-pods $node_pool_max_pods \
-    --tags os_disk_type=$os_disk_type os_type=Linux \
+    --tags provisioning=az-cli \
     --labels os_disk_type=$os_disk_type os_type=Linux \
     --vnet-subnet-id $user_subnet_id \
     --zones 1 2 3 \

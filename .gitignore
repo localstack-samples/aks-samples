@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Terraform local state and artifacts (never commit state — may contain secrets)
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+tfplan
+tfplan.log
+tfplan-postapply.log
+crash.log
