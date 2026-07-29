@@ -1,0 +1,6 @@
+# Namespace that holds the consumer Deployment, the producer Job, the application service account,
+# and the KEDA resources. The name is patched from NAMESPACE in 00-variables.sh at apply time.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keda-queue-storage-sample

@@ -1,0 +1,42 @@
+# The consumer Deployment, the workload KEDA scales.
+#
+# replicas: 0 is deliberate: the ScaledObject activates the Deployment when the consumer group falls
+# behind and returns it to zero when it has caught up, so the sample starts from a scaled-to-zero
+# state. The image reference is patched at apply time from `az acr show --query loginServer`, because
+# the emulator and real Azure return different login servers.
+#
+# The envFrom secretRef is what puts EVENTHUB_CONNECTION and STORAGE_CONNECTION in the container's
+# environment. The trigger reads them from there by name (connectionFromEnv, storageConnectionFromEnv),
+# so removing it would break the scaler as well as the application.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eh-consumer
+  namespace: keda-event-hubs-sample
+  labels:
+    app: eh-consumer
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: eh-consumer
+  template:
+    metadata:
+      labels:
+        app: eh-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: <your-registry>/keda-eventhub-consumer:v1
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: eh-app-config
+            - secretRef:
+                name: eh-connection
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

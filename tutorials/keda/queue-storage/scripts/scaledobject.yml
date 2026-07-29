@@ -1,0 +1,39 @@
+# Scales the consumer Deployment on the Azure Storage Queue backlog.
+#
+# The scaler reads the queue's approximate message count over HTTPS, building the URL as
+# https://{accountName}.{endpointSuffix}/{queueName}, so endpointSuffix must be the host and port that
+# serves the queue endpoint minus the account label: queue.core.windows.net on real Azure, and the
+# emulator's queue host and gateway port on LocalStack. The suffix is derived from the ARM-returned
+# primaryEndpoints.queue at apply time, and cloud: Private is what allows a custom suffix.
+# https://keda.sh/docs/2.20/scalers/azure-storage-queue/
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: queue-scaler
+  namespace: keda-queue-storage-sample
+spec:
+  scaleTargetRef:
+    name: queue-consumer
+  pollingInterval: 5
+  cooldownPeriod: 30
+  minReplicaCount: 0
+  maxReplicaCount: 4
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 10
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+  triggers:
+    - type: azure-queue
+      metadata:
+        queueName: ""
+        accountName: ""
+        queueLength: "5"
+        cloud: Private
+        endpointSuffix: ""
+      authenticationRef:
+        name: queue-trigger-auth

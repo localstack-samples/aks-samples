@@ -1,0 +1,182 @@
+#!/bin/bash
+
+# Step 2: create (or reuse) the user-assigned managed identity that the three KEDA tutorials share,
+# federate it to the keda-operator service account, and bind the operator to it by annotating that
+# service account and restarting the operator.
+#
+# The keda-operator service account exists once, in kube-system, so a single shared identity is what
+# lets the three KEDA tutorials coexist on one cluster: the first tutorial you run creates the
+# identity and the binding, and the others find both already in place.
+# https://learn.microsoft.com/en-us/azure/aks/keda-workload-identity
+#
+# This tutorial federates the same identity a second time, to the queue-app service account the
+# producer and the consumer run as, so the applications can exchange their own projected token for a
+# Microsoft Entra token too. That second credential is what makes this the only one of the three
+# tutorials with no connection string and no secret.
+# https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview
+
+# Variables
+source ./00-variables.sh
+
+# Get or create the shared user-assigned managed identity
+echo "Checking if the [$MANAGED_IDENTITY_NAME] managed identity exists in the [$AKS_RESOURCE_GROUP_NAME] resource group..."
+az identity show \
+  --name $MANAGED_IDENTITY_NAME \
+  --resource-group $AKS_RESOURCE_GROUP_NAME \
+  --only-show-errors &>/dev/null
+
+if [[ $? -ne 0 ]]; then
+  echo "No [$MANAGED_IDENTITY_NAME] managed identity exists in the [$AKS_RESOURCE_GROUP_NAME] resource group"
+  echo "Creating the [$MANAGED_IDENTITY_NAME] managed identity..."
+
+  az identity create \
+    --name $MANAGED_IDENTITY_NAME \
+    --resource-group $AKS_RESOURCE_GROUP_NAME \
+    --location $LOCATION \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? -eq 0 ]]; then
+    echo "The [$MANAGED_IDENTITY_NAME] managed identity was successfully created"
+  else
+    echo "Failed to create the [$MANAGED_IDENTITY_NAME] managed identity"
+    exit 1
+  fi
+else
+  echo "The [$MANAGED_IDENTITY_NAME] managed identity already exists"
+fi
+
+# The client id identifies the identity when a workload authenticates; the principal (object) id is
+# what role assignments are granted to. They are different values and are not interchangeable.
+MANAGED_IDENTITY_CLIENT_ID=$(az identity show \
+  --name $MANAGED_IDENTITY_NAME \
+  --resource-group $AKS_RESOURCE_GROUP_NAME \
+  --query clientId \
+  --output tsv \
+  --only-show-errors 2>/dev/null)
+if [[ -z $MANAGED_IDENTITY_CLIENT_ID ]]; then
+  echo "Failed to retrieve the client id of the [$MANAGED_IDENTITY_NAME] managed identity"
+  exit 1
+fi
+echo "The client id of the [$MANAGED_IDENTITY_NAME] managed identity is [$MANAGED_IDENTITY_CLIENT_ID]"
+
+# Retrieve the cluster's OIDC issuer URL, the trust anchor of the federated credentials
+AKS_OIDC_ISSUER_URL=$(az aks show \
+  --name $AKS_NAME \
+  --resource-group $AKS_RESOURCE_GROUP_NAME \
+  --query oidcIssuerProfile.issuerUrl \
+  --output tsv \
+  --only-show-errors 2>/dev/null)
+if [[ -z $AKS_OIDC_ISSUER_URL ]]; then
+  echo "Failed to retrieve the OIDC issuer URL of the [$AKS_NAME] AKS cluster"
+  echo "Make sure the cluster was created with the OIDC issuer enabled (az aks update --enable-oidc-issuer)"
+  exit 1
+fi
+echo "The OIDC issuer URL of the [$AKS_NAME] AKS cluster is [$AKS_OIDC_ISSUER_URL]"
+
+# Get or create the federated credential for the KEDA operator's service account
+echo "Checking if the [$FEDERATED_IDENTITY_NAME_KEDA] federated credential exists on the [$MANAGED_IDENTITY_NAME] managed identity..."
+az identity federated-credential show \
+  --name $FEDERATED_IDENTITY_NAME_KEDA \
+  --identity-name $MANAGED_IDENTITY_NAME \
+  --resource-group $AKS_RESOURCE_GROUP_NAME \
+  --only-show-errors &>/dev/null
+
+if [[ $? -ne 0 ]]; then
+  echo "No [$FEDERATED_IDENTITY_NAME_KEDA] federated credential exists on the [$MANAGED_IDENTITY_NAME] managed identity"
+  echo "Creating the [$FEDERATED_IDENTITY_NAME_KEDA] federated credential..."
+
+  az identity federated-credential create \
+    --name $FEDERATED_IDENTITY_NAME_KEDA \
+    --identity-name $MANAGED_IDENTITY_NAME \
+    --resource-group $AKS_RESOURCE_GROUP_NAME \
+    --issuer $AKS_OIDC_ISSUER_URL \
+    --subject system:serviceaccount:${KEDA_NAMESPACE}:${KEDA_OPERATOR_SERVICE_ACCOUNT} \
+    --audience $FEDERATED_IDENTITY_AUDIENCE \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? -eq 0 ]]; then
+    echo "The [$FEDERATED_IDENTITY_NAME_KEDA] federated credential was successfully created"
+  else
+    echo "Failed to create the [$FEDERATED_IDENTITY_NAME_KEDA] federated credential"
+    exit 1
+  fi
+else
+  echo "The [$FEDERATED_IDENTITY_NAME_KEDA] federated credential already exists"
+fi
+
+# Get or create the federated credential for the application service account, the one the producer and
+# the consumer pods run as. It is created here, before the namespace and the service account exist,
+# because a federated credential is a property of the managed identity: it only names the subject, and
+# the subject is resolved when a pod presents its token.
+echo "Checking if the [$FEDERATED_IDENTITY_NAME_APP] federated credential exists on the [$MANAGED_IDENTITY_NAME] managed identity..."
+az identity federated-credential show \
+  --name $FEDERATED_IDENTITY_NAME_APP \
+  --identity-name $MANAGED_IDENTITY_NAME \
+  --resource-group $AKS_RESOURCE_GROUP_NAME \
+  --only-show-errors &>/dev/null
+
+if [[ $? -ne 0 ]]; then
+  echo "No [$FEDERATED_IDENTITY_NAME_APP] federated credential exists on the [$MANAGED_IDENTITY_NAME] managed identity"
+  echo "Creating the [$FEDERATED_IDENTITY_NAME_APP] federated credential..."
+
+  az identity federated-credential create \
+    --name $FEDERATED_IDENTITY_NAME_APP \
+    --identity-name $MANAGED_IDENTITY_NAME \
+    --resource-group $AKS_RESOURCE_GROUP_NAME \
+    --issuer $AKS_OIDC_ISSUER_URL \
+    --subject system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT_NAME} \
+    --audience $FEDERATED_IDENTITY_AUDIENCE \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? -eq 0 ]]; then
+    echo "The [$FEDERATED_IDENTITY_NAME_APP] federated credential was successfully created"
+  else
+    echo "Failed to create the [$FEDERATED_IDENTITY_NAME_APP] federated credential"
+    exit 1
+  fi
+else
+  echo "The [$FEDERATED_IDENTITY_NAME_APP] federated credential already exists"
+fi
+
+# Merge the cluster credentials into kubeconfig and set it as the current context
+echo "Merging credentials for the [$AKS_NAME] AKS cluster into kubeconfig..."
+az aks get-credentials \
+  --name $AKS_NAME \
+  --resource-group $AKS_RESOURCE_GROUP_NAME \
+  --overwrite-existing \
+  --only-show-errors
+if [[ $? -ne 0 ]]; then
+  echo "Failed to merge the credentials for the [$AKS_NAME] AKS cluster"
+  exit 1
+fi
+
+# Bind the operator to the identity. The annotation tells the workload-identity webhook which
+# identity to project a token for; the operator only picks it up when its pods restart, so the
+# restart is skipped when the annotation is already the one we want.
+CURRENT_CLIENT_ID=$(kubectl get serviceaccount $KEDA_OPERATOR_SERVICE_ACCOUNT \
+  --namespace $KEDA_NAMESPACE \
+  --output jsonpath='{.metadata.annotations.azure\.workload\.identity/client-id}' 2>/dev/null)
+
+if [[ "$CURRENT_CLIENT_ID" == "$MANAGED_IDENTITY_CLIENT_ID" ]]; then
+  echo "The [$KEDA_OPERATOR_SERVICE_ACCOUNT] service account is already bound to the [$MANAGED_IDENTITY_NAME] managed identity"
+else
+  echo "Annotating the [$KEDA_OPERATOR_SERVICE_ACCOUNT] service account with the client id of the [$MANAGED_IDENTITY_NAME] managed identity..."
+  kubectl annotate serviceaccount $KEDA_OPERATOR_SERVICE_ACCOUNT \
+    --namespace $KEDA_NAMESPACE \
+    azure.workload.identity/client-id=$MANAGED_IDENTITY_CLIENT_ID \
+    --overwrite
+  if [[ $? -ne 0 ]]; then
+    echo "Failed to annotate the [$KEDA_OPERATOR_SERVICE_ACCOUNT] service account"
+    exit 1
+  fi
+
+  echo "Restarting the [$KEDA_OPERATOR_DEPLOYMENT] deployment so the workload-identity variables are injected..."
+  kubectl rollout restart deployment/$KEDA_OPERATOR_DEPLOYMENT --namespace $KEDA_NAMESPACE
+  kubectl rollout status deployment/$KEDA_OPERATOR_DEPLOYMENT \
+    --namespace $KEDA_NAMESPACE \
+    --timeout=${TIMEOUT_SECONDS}s
+  if [[ $? -ne 0 ]]; then
+    echo "The [$KEDA_OPERATOR_DEPLOYMENT] deployment did not become ready after the restart"
+    exit 1
+  fi
+fi

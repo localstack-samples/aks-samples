@@ -1,0 +1,33 @@
+# Fills the queue so the scaler has a backlog to react to.
+#
+# A Job's pod template is immutable once created, so the script deletes any previous Job before
+# applying this one; ttlSecondsAfterFinished additionally lets the TTL-after-finished controller reap
+# the finished Job on its own.
+# https://kubernetes.io/docs/concepts/workloads/controllers/job/
+#
+# Like the consumer, the pod template carries the azure.workload.identity/use: "true" label and runs as
+# the queue-app service account, so the producer authenticates with Microsoft Entra Workload ID and
+# envFrom references only the config map.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: queue-producer
+  namespace: keda-queue-storage-sample
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: queue-producer
+        azure.workload.identity/use: "true"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: queue-app
+      containers:
+        - name: producer
+          image: <your-registry>/keda-queue-producer:v1
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: queue-app-config

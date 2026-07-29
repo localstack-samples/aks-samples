@@ -1,0 +1,44 @@
+# Scales the consumer Deployment on how far the consumer group is behind the event hub.
+#
+# Event Hubs is a log, not a queue, so there is no message count to read: the scaler computes the lag
+# per partition as the last enqueued sequence number minus the sequence number in the consumer group's
+# checkpoint, which it reads from the blobContainer, and averages it over the replicas. That is why
+# checkpointStrategy has to match the checkpoint format the consumer writes: blobMetadata is the format
+# of the modern Python, C#, Java and JavaScript SDKs, which is what azure-eventhub-checkpointstoreblob
+# produces.
+#
+# There is no authenticationRef: the trigger reads both connection strings from the scale target's
+# environment by name, so connectionFromEnv and storageConnectionFromEnv must name the keys the secret
+# puts in the consumer container through envFrom. The hub itself needs no metadata entry, because the
+# connection string of a hub-level authorization rule carries EntityPath=<hub>.
+# https://keda.sh/docs/2.20/scalers/azure-event-hub/
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: eh-scaler
+  namespace: keda-event-hubs-sample
+spec:
+  scaleTargetRef:
+    name: eh-consumer
+  pollingInterval: 5
+  cooldownPeriod: 30
+  minReplicaCount: 0
+  maxReplicaCount: 4
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 10
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+  triggers:
+    - type: azure-eventhub
+      metadata:
+        consumerGroup: ""
+        unprocessedEventThreshold: "5"
+        blobContainer: ""
+        checkpointStrategy: blobMetadata
+        connectionFromEnv: EVENTHUB_CONNECTION
+        storageConnectionFromEnv: STORAGE_CONNECTION
