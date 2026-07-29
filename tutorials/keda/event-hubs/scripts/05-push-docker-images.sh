@@ -7,13 +7,16 @@
 # Variables
 source ./00-variables.sh
 
-# Authenticate the Docker client to the registry. Against the LocalStack emulator this command exits
-# non-zero because the emulated registry issues no tokens, while the pushes below still succeed
-# anonymously, so its result is reported but not treated as fatal.
+# Authenticate the Docker client to the registry. This is the step that fails first when the Azure CLI
+# is not signed in to the right target: a credential for real Azure left in the CLI's token cache
+# cannot log in to the emulated registry even when the rest of the CLI is pointed at the emulator.
+# The failure is reported rather than fatal, because the emulated registry also accepts anonymous
+# pushes, so the tutorial can still finish; on real Azure a failure here means the push will fail too.
 echo "Logging into the [$ACR_NAME] container registry..."
 az acr login --name $ACR_NAME --only-show-errors
 if [[ $? -ne 0 ]]; then
-  echo "Could not log into the [$ACR_NAME] container registry, continuing anyway (the emulated registry accepts anonymous pushes)"
+  echo "Could not log into the [$ACR_NAME] container registry"
+  echo "Check that the Azure CLI is signed in to the target you mean to use; continuing, because the emulated registry accepts anonymous pushes"
 fi
 
 # Each image must be tagged with the registry's login server. Real Azure returns

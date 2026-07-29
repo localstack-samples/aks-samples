@@ -36,17 +36,6 @@ dump_diagnostics() {
   echo "-----------------------"
 }
 
-# Merge the cluster credentials into kubeconfig and set it as the current context
-az aks get-credentials \
-  --name $AKS_NAME \
-  --resource-group $AKS_RESOURCE_GROUP_NAME \
-  --overwrite-existing \
-  --only-show-errors 1>/dev/null
-if [[ $? -ne 0 ]]; then
-  echo "FAIL: could not merge the credentials for the [$AKS_NAME] AKS cluster"
-  exit 1
-fi
-
 # Check 1: KEDA owns the workload
 kubectl get hpa $HPA_NAME --namespace $NAMESPACE &>/dev/null
 if [[ $? -eq 0 ]]; then

@@ -63,18 +63,6 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
-# Wait for the KEDA operator, the component that evaluates the scaling triggers
-echo "Waiting for the [$KEDA_OPERATOR_DEPLOYMENT] deployment in the [$KEDA_NAMESPACE] namespace..."
-kubectl wait deployment/$KEDA_OPERATOR_DEPLOYMENT \
-  --namespace $KEDA_NAMESPACE \
-  --for=condition=Available \
-  --timeout=${TIMEOUT_SECONDS}s
-if [[ $? -ne 0 ]]; then
-  echo "The [$KEDA_OPERATOR_DEPLOYMENT] deployment did not become available"
-  kubectl get deployments --namespace $KEDA_NAMESPACE
-  exit 1
-fi
-
 # Wait for the ScaledObject custom resource definition, without which the ScaledObject cannot be applied
 echo "Waiting for the [$KEDA_SCALED_OBJECT_CRD] custom resource definition..."
 kubectl wait crd/$KEDA_SCALED_OBJECT_CRD \
@@ -90,9 +78,5 @@ fi
 # https://learn.microsoft.com/en-us/azure/aks/keda-deploy-add-on-cli
 KEDA_VERSION=$(kubectl get crd/$KEDA_SCALED_OBJECT_CRD \
   --output jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' 2>/dev/null)
-echo "KEDA [$KEDA_VERSION] is running in the [$KEDA_NAMESPACE] namespace:"
-
-# The component deployment names differ between the AKS managed add-on
-# (keda-operator-metrics-apiserver, keda-admission-webhooks) and the upstream bundle the LocalStack
-# emulator installs (keda-metrics-apiserver, keda-admission), so they are listed, not asserted.
-kubectl get deployments --namespace $KEDA_NAMESPACE --no-headers 2>/dev/null | grep keda
+echo "The KEDA add-on is installed in the [$KEDA_NAMESPACE] namespace, version [$KEDA_VERSION]"
+echo "Run 02-create-managed-identity.sh next: it binds the operator to the managed identity and restarts it"

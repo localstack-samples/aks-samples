@@ -10,18 +10,6 @@
 # Variables
 source ./00-variables.sh
 
-# Merge the cluster credentials into kubeconfig and set it as the current context
-echo "Merging credentials for the [$AKS_NAME] AKS cluster into kubeconfig..."
-az aks get-credentials \
-  --name $AKS_NAME \
-  --resource-group $AKS_RESOURCE_GROUP_NAME \
-  --overwrite-existing \
-  --only-show-errors
-if [[ $? -ne 0 ]]; then
-  echo "Failed to merge the credentials for the [$AKS_NAME] AKS cluster"
-  exit 1
-fi
-
 # The consumer should be idle before the backlog is created, so the scale-out from zero is visible
 REPLICAS=$(kubectl get deployment $DEPLOYMENT_NAME \
   --namespace $NAMESPACE \

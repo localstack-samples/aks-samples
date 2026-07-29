@@ -11,13 +11,6 @@
 # Variables
 source ./00-variables.sh
 
-# Merge the cluster credentials into kubeconfig and set it as the current context
-az aks get-credentials \
-  --name $AKS_NAME \
-  --resource-group $AKS_RESOURCE_GROUP_NAME \
-  --overwrite-existing \
-  --only-show-errors 1>/dev/null
-
 # Delete the namespace, and with it the deployment, job, secret, config map, and KEDA resources
 if kubectl get namespace $NAMESPACE &>/dev/null; then
   echo "Deleting the [$NAMESPACE] namespace..."

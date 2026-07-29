@@ -138,18 +138,6 @@ else
   echo "The [$FEDERATED_IDENTITY_NAME_APP] federated credential already exists"
 fi
 
-# Merge the cluster credentials into kubeconfig and set it as the current context
-echo "Merging credentials for the [$AKS_NAME] AKS cluster into kubeconfig..."
-az aks get-credentials \
-  --name $AKS_NAME \
-  --resource-group $AKS_RESOURCE_GROUP_NAME \
-  --overwrite-existing \
-  --only-show-errors
-if [[ $? -ne 0 ]]; then
-  echo "Failed to merge the credentials for the [$AKS_NAME] AKS cluster"
-  exit 1
-fi
-
 # Bind the operator to the identity. The annotation tells the workload-identity webhook which
 # identity to project a token for; the operator only picks it up when its pods restart, so the
 # restart is skipped when the annotation is already the one we want.
@@ -180,3 +168,12 @@ else
     exit 1
   fi
 fi
+
+# Report the add-on's final state: the operator is now bound to the identity, so this is the point
+# where the component list is meaningful. The deployment names differ between the AKS managed add-on
+# (keda-operator-metrics-apiserver, keda-admission-webhooks) and the upstream bundle the LocalStack
+# emulator installs (keda-metrics-apiserver, keda-admission), so they are listed, not asserted.
+KEDA_VERSION=$(kubectl get crd/$KEDA_SCALED_OBJECT_CRD \
+  --output jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' 2>/dev/null)
+echo "KEDA [$KEDA_VERSION] is running in the [$KEDA_NAMESPACE] namespace, bound to the [$MANAGED_IDENTITY_NAME] managed identity:"
+kubectl get deployments --namespace $KEDA_NAMESPACE --no-headers 2>/dev/null | grep keda
