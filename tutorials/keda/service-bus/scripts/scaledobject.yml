@@ -1,0 +1,38 @@
+# Scales the consumer Deployment on the Service Bus queue backlog.
+#
+# The scaler reads the queue's active message count through the HTTPS management API, so
+# endpointSuffix must point at the host and port that serves it: real Azure serves it on
+# servicebus.windows.net:443, and the emulator serves it through its gateway. The suffix is derived
+# from the ARM-returned serviceBusEndpoint at apply time, and cloud: Private is what allows a
+# custom suffix. https://keda.sh/docs/2.20/scalers/azure-service-bus/
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: sb-scaler
+  namespace: keda-service-bus-sample
+spec:
+  scaleTargetRef:
+    name: sb-consumer
+  pollingInterval: 5
+  cooldownPeriod: 30
+  minReplicaCount: 0
+  maxReplicaCount: 4
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 10
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+  triggers:
+    - type: azure-servicebus
+      metadata:
+        queueName: ""
+        namespace: ""
+        messageCount: "5"
+        cloud: Private
+        endpointSuffix: ""
+      authenticationRef:
+        name: sb-trigger-auth

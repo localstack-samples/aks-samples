@@ -1,0 +1,38 @@
+# The consumer Deployment, the workload KEDA scales.
+#
+# replicas: 0 is deliberate: the ScaledObject activates the Deployment when the queue has messages
+# and returns it to zero when the backlog is drained, so the sample starts from a scaled-to-zero
+# state. The image reference is patched at apply time from `az acr show --query loginServer`,
+# because the emulator and real Azure return different login servers.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sb-consumer
+  namespace: keda-service-bus-sample
+  labels:
+    app: sb-consumer
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: sb-consumer
+  template:
+    metadata:
+      labels:
+        app: sb-consumer
+    spec:
+      containers:
+        - name: consumer
+          image: <your-registry>/keda-servicebus-consumer:v1
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: sb-app-config
+            - secretRef:
+                name: sb-connection
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

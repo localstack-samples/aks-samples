@@ -1,0 +1,14 @@
+# Tells the KEDA operator to authenticate to Azure with Microsoft Entra Workload ID, using the
+# user-assigned managed identity whose client id is patched in at apply time. The operator's own
+# federated credential (subject system:serviceaccount:kube-system:keda-operator) is what makes the
+# token exchange possible, and the identity holds the Azure Service Bus Data Owner role on the
+# namespace. https://learn.microsoft.com/en-us/azure/aks/keda-workload-identity
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: sb-trigger-auth
+  namespace: keda-service-bus-sample
+spec:
+  podIdentity:
+    provider: azure-workload
+    identityId: ""
