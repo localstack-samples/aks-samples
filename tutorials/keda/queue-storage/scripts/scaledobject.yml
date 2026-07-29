@@ -21,6 +21,15 @@ spec:
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
+        # Add replicas one at a time so the ramp is observable; see SCALE_UP_PODS in 00-variables.sh
+        # for why the HorizontalPodAutoscaler default is too aggressive for a demonstration.
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          selectPolicy: Max
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 15
         scaleDown:
           stabilizationWindowSeconds: 10
           policies:

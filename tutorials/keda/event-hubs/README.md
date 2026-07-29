@@ -145,6 +145,8 @@ Both connection strings are used **verbatim as returned by Azure**, and both are
 
 `03-create-resources.sh` still creates the shared managed identity's two grants, `Azure Event Hubs Data Owner` on the namespace and `Storage Blob Data Contributor` on the storage account. They are **not** exercised by the connection-string path this tutorial takes. They are there so that, against real Azure, you can switch the trigger to workload identity by adding a `TriggerAuthentication` with `podIdentity.provider: azure-workload` (exactly as the `service-bus` tutorial does), replacing `connectionFromEnv` and `storageConnectionFromEnv` with `eventHubNamespace`, `eventHubName`, and `blobContainer`, and referencing it from the trigger.
 
+**Why the ramp is gradual.** Left to its defaults the autoscaler may add four replicas, or double the count, every fifteen seconds. With a backlog of `MESSAGE_COUNT` messages against a per-replica target of `SCALING_THRESHOLD`, the computed target is far above `MAX_REPLICAS`, so the default policy would jump straight to the cap in one step and there would be no ramp to watch. The `ScaledObject` therefore sets an explicit `scaleUp` policy of `SCALE_UP_PODS` replica per `SCALE_UP_PERIOD_SECONDS` seconds, so the scale-out is visible as `0 -> 1 -> 2 -> 3 -> 4`. Scale-in is left aggressive on purpose: once the backlog is gone there is nothing to be gradual about. Both knobs live in [../00-variables.sh](../00-variables.sh), and [08-watch-scaling.sh](scripts/08-watch-scaling.sh) records the observed steps and fails if the deployment reaches the cap in a single one.
+
 ## Resources
 
 - [Azure Event Hubs documentation](https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-about)

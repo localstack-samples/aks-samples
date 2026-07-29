@@ -58,6 +58,16 @@ POLLING_INTERVAL=5
 COOLDOWN_PERIOD=30
 SCALE_DOWN_STABILIZATION_SECONDS=10
 
+# How fast the autoscaler is allowed to add replicas. This is deliberately slower than the
+# HorizontalPodAutoscaler default, which may add 4 pods (or double the count) every 15 seconds: with a
+# backlog of MESSAGE_COUNT messages and a per-replica target of SCALING_THRESHOLD, the computed target
+# is ceil(MESSAGE_COUNT / SCALING_THRESHOLD), far above MAX_REPLICAS, so the default policy would jump
+# straight to the cap in a single step and there would be no ramp to watch. One replica per period
+# makes the scale-out visible, which is the point of the sample. Scale-in is left aggressive, because
+# once the backlog is gone there is nothing to be gradual about.
+SCALE_UP_PODS=1
+SCALE_UP_PERIOD_SECONDS=15
+
 # Polling knobs used by the wait loops
 TIMEOUT_SECONDS=300
 SLEEP=5

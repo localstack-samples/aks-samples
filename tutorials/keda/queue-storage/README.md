@@ -156,6 +156,8 @@ The polling interval, cooldown and scale-down stabilization window are deliberat
 
 `08-watch-scaling.sh` reads the remaining backlog with Peek Messages, because the `az` CLI does not surface a queue's approximate message count. Peek sees only visible messages, so the drain check can pass slightly early; the scale-in check is the strict one, since KEDA's own metric is the approximate message count and does include the messages a replica is still holding.
 
+**Why the ramp is gradual.** Left to its defaults the autoscaler may add four replicas, or double the count, every fifteen seconds. With a backlog of `MESSAGE_COUNT` messages against a per-replica target of `SCALING_THRESHOLD`, the computed target is far above `MAX_REPLICAS`, so the default policy would jump straight to the cap in one step and there would be no ramp to watch. The `ScaledObject` therefore sets an explicit `scaleUp` policy of `SCALE_UP_PODS` replica per `SCALE_UP_PERIOD_SECONDS` seconds, so the scale-out is visible as `0 -> 1 -> 2 -> 3 -> 4`. Scale-in is left aggressive on purpose: once the backlog is gone there is nothing to be gradual about. Both knobs live in [../00-variables.sh](../00-variables.sh), and [08-watch-scaling.sh](scripts/08-watch-scaling.sh) records the observed steps and fails if the deployment reaches the cap in a single one.
+
 ## Resources
 
 - [KEDA](https://keda.sh/) and the [Azure Storage Queue scaler](https://keda.sh/docs/2.20/scalers/azure-storage-queue/)

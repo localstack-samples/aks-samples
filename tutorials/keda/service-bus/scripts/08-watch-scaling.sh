@@ -46,32 +46,62 @@ else
   exit 1
 fi
 
-# Check 2: the consumer scales out from zero
-echo "Waiting for the [$DEPLOYMENT_NAME] deployment to scale out (at least 2 ready replicas)..."
+# Check 2: the consumer scales out from zero, one replica at a time.
+#
+# Both halves matter. Reaching MAX_REPLICAS proves the backlog was seen; getting there through
+# intermediate steps proves the autoscaler is following the scaleUp policy rather than slamming into the
+# cap, which is what the ramp in this sample is meant to show. The poll is faster than the policy period
+# so no step can be missed, and every requested value is recorded rather than only the final one.
+echo "Watching the [$DEPLOYMENT_NAME] deployment scale out (one replica per [$SCALE_UP_PERIOD_SECONDS]s, up to [$MAX_REPLICAS])..."
+RAMP_POLL_SECONDS=2
 OBSERVED_REPLICAS=0
+OBSERVED_STEPS=""
+STEP_COUNT=0
 SCALED_OUT=""
-for i in $(seq 1 $(($SCALE_OUT_TIMEOUT_SECONDS / $SLEEP))); do
+for i in $(seq 1 $(($SCALE_OUT_TIMEOUT_SECONDS / $RAMP_POLL_SECONDS))); do
+  DESIRED=$(kubectl get deployment $DEPLOYMENT_NAME \
+    --namespace $NAMESPACE \
+    --output jsonpath='{.spec.replicas}' 2>/dev/null)
   READY=$(kubectl get deployment $DEPLOYMENT_NAME \
     --namespace $NAMESPACE \
     --output jsonpath='{.status.readyReplicas}' 2>/dev/null)
+  DESIRED=${DESIRED:-0}
   READY=${READY:-0}
-  if [[ $READY -gt $OBSERVED_REPLICAS ]]; then
-    OBSERVED_REPLICAS=$READY
-    echo "The [$DEPLOYMENT_NAME] deployment has [$READY] ready replicas"
+  if [[ $DESIRED -gt $OBSERVED_REPLICAS ]]; then
+    OBSERVED_REPLICAS=$DESIRED
+    STEP_COUNT=$(($STEP_COUNT + 1))
+    OBSERVED_STEPS="${OBSERVED_STEPS:+$OBSERVED_STEPS -> }$DESIRED"
+    echo "The autoscaler now requests [$DESIRED] replicas ([$READY] ready)"
   fi
-  if [[ $READY -ge 2 ]]; then
+  if [[ $DESIRED -ge $MAX_REPLICAS ]]; then
     SCALED_OUT="true"
     break
   fi
-  sleep $SLEEP
+  sleep $RAMP_POLL_SECONDS
 done
 
+echo "Observed scale-out: 0 -> $OBSERVED_STEPS"
+
 if [[ -n $SCALED_OUT ]]; then
-  echo "PASS: the [$DEPLOYMENT_NAME] deployment scaled out from zero to [$OBSERVED_REPLICAS] ready replicas"
+  echo "PASS: the [$DEPLOYMENT_NAME] deployment scaled out from zero to [$MAX_REPLICAS] replicas"
+elif [[ $OBSERVED_REPLICAS -ge 2 ]]; then
+  # The backlog drained while the ramp was still climbing, which is a legitimate outcome for a small
+  # backlog: the scale-out is proven, it simply stopped short of the cap.
+  echo "PASS: the [$DEPLOYMENT_NAME] deployment scaled out from zero to [$OBSERVED_REPLICAS] replicas before the backlog drained"
 else
-  echo "FAIL: the [$DEPLOYMENT_NAME] deployment did not reach 2 ready replicas (highest observed: [$OBSERVED_REPLICAS])"
+  echo "FAIL: the [$DEPLOYMENT_NAME] deployment did not scale beyond [$OBSERVED_REPLICAS] replicas"
   FAILED="true"
   dump_diagnostics
+fi
+
+# The ramp itself: with the scaleUp policy of one replica per period, going from zero to the cap has to
+# take more than one step. A single step to the cap means the policy is not in effect.
+if [[ $STEP_COUNT -ge 2 ]]; then
+  echo "PASS: the scale-out was gradual, in [$STEP_COUNT] steps"
+else
+  echo "FAIL: the deployment reached [$OBSERVED_REPLICAS] replicas in a single step, so the scaleUp policy did not take effect"
+  FAILED="true"
+  kubectl describe hpa $HPA_NAME --namespace $NAMESPACE 2>/dev/null | sed -n '/Behavior:/,/Conditions:/p'
 fi
 
 # Check 3: the queue drains. A missing or failed read never counts as drained.

@@ -172,6 +172,8 @@ cat scaledobject.yml |
   yq "(.spec.minReplicaCount)|=$MIN_REPLICAS" |
   yq "(.spec.maxReplicaCount)|=$MAX_REPLICAS" |
   yq "(.spec.advanced.horizontalPodAutoscalerConfig.behavior.scaleDown.stabilizationWindowSeconds)|=$SCALE_DOWN_STABILIZATION_SECONDS" |
+  yq "(.spec.advanced.horizontalPodAutoscalerConfig.behavior.scaleUp.policies[0].value)|=$SCALE_UP_PODS" |
+  yq "(.spec.advanced.horizontalPodAutoscalerConfig.behavior.scaleUp.policies[0].periodSeconds)|=$SCALE_UP_PERIOD_SECONDS" |
   yq "(.spec.triggers[0].metadata.queueName)|=\"$STORAGE_QUEUE_NAME\"" |
   yq "(.spec.triggers[0].metadata.accountName)|=\"$STORAGE_ACCOUNT_NAME\"" |
   yq "(.spec.triggers[0].metadata.queueLength)|=\"$SCALING_THRESHOLD\"" |
