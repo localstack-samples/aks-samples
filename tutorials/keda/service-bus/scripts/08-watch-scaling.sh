@@ -89,6 +89,12 @@ fi
 echo "Waiting for the [$SERVICE_BUS_QUEUE_NAME] queue to drain..."
 DRAINED=""
 for i in $(seq 1 $(($DRAIN_TIMEOUT_SECONDS / $SLEEP))); do
+  # Both counts matter: a consumer that keeps crashing burns the queue's maxDeliveryCount and the
+  # messages end up in the dead-letter queue, which empties activeMessageCount without any of the
+  # work being done. Requiring deadLetterMessageCount to stay at zero is what stops that from
+  # reading as a successful drain.
+  # Queried separately on purpose: `--query "[a, b]" --output tsv` prints the two values on two
+  # lines, not tab separated, so reading them as one record would produce a multi-line value.
   MESSAGE_BACKLOG=$(az servicebus queue show \
     --name $SERVICE_BUS_QUEUE_NAME \
     --namespace-name $SERVICE_BUS_NAMESPACE_NAME \
@@ -96,17 +102,28 @@ for i in $(seq 1 $(($DRAIN_TIMEOUT_SECONDS / $SLEEP))); do
     --query countDetails.activeMessageCount \
     --output tsv \
     --only-show-errors 2>/dev/null)
-  if [[ "$MESSAGE_BACKLOG" == "0" ]]; then
+  DEAD_LETTERED=$(az servicebus queue show \
+    --name $SERVICE_BUS_QUEUE_NAME \
+    --namespace-name $SERVICE_BUS_NAMESPACE_NAME \
+    --resource-group $AKS_RESOURCE_GROUP_NAME \
+    --query countDetails.deadLetterMessageCount \
+    --output tsv \
+    --only-show-errors 2>/dev/null)
+  if [[ "$MESSAGE_BACKLOG" == "0" && "$DEAD_LETTERED" == "0" ]]; then
     DRAINED="true"
+    break
+  fi
+  if [[ -n $DEAD_LETTERED && "$DEAD_LETTERED" != "0" ]]; then
+    echo "FAIL: [$DEAD_LETTERED] message(s) were dead-lettered, so the consumer is failing to process them"
     break
   fi
   sleep $SLEEP
 done
 
 if [[ -n $DRAINED ]]; then
-  echo "PASS: the consumer drained the [$SERVICE_BUS_QUEUE_NAME] queue"
+  echo "PASS: the consumer drained the [$SERVICE_BUS_QUEUE_NAME] queue with no dead-lettered messages"
 else
-  echo "FAIL: the [$SERVICE_BUS_QUEUE_NAME] queue still reports [${MESSAGE_BACKLOG:-unknown}] active messages"
+  echo "FAIL: the [$SERVICE_BUS_QUEUE_NAME] queue reports [${MESSAGE_BACKLOG:-unknown}] active and [${DEAD_LETTERED:-unknown}] dead-lettered messages"
   FAILED="true"
   dump_diagnostics
 fi

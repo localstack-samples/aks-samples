@@ -48,6 +48,31 @@ cd keda/service-bus/scripts
 # ./09-cleanup.sh --disable-keda   # also remove the KEDA add-on
 ```
 
+### Kubernetes manifests
+
+Every manifest in [scripts/](scripts/) is valid, applyable YAML whose environment-specific fields are empty strings or placeholders; the deploy scripts fill them in with `yq`, which is why the same files work against the emulator and against Azure without edits.
+
+| Manifest | What it creates | Filled in at apply time |
+| --- | --- | --- |
+| `namespace.yml` | The `keda-service-bus-sample` namespace that holds everything else. | The namespace name. |
+| `configmap.yml` | `sb-app-config`, the non-secret settings both applications read as environment variables. | The queue name, the message count, the seconds of work per message and the batch size. |
+| `secret.yml` | `sb-connection`, holding the Service Bus namespace connection string. | The connection string returned by `az servicebus namespace authorization-rule keys list`, base64 encoded and used verbatim. |
+| `deployment.yml` | `sb-consumer`, the workload KEDA scales, at `replicas: 0`. | The consumer image (from the registry's login server), the pull policy, and the config map and secret names. |
+| `triggerauthentication.yml` | `sb-trigger-auth`, which tells KEDA to authenticate as the shared managed identity with workload identity. | The managed identity's client id. |
+| `scaledobject.yml` | `sb-scaler`, the trigger and the scaling bounds. KEDA turns it into the `keda-hpa-sb-scaler` autoscaler. | The queue and namespace names, the message-count threshold, the derived `endpointSuffix`, and the polling, cooldown and replica bounds. |
+| `producer-job.yml` | `sb-producer`, the `Job` that fills the queue. | The producer image, the pull policy, and the config map and secret names. |
+
+### Applications
+
+The producer and the consumer are separate Python applications with their own dependencies and their own image, built from `src/` and pushed to the registry attached to the cluster.
+
+| Path | What it is |
+| --- | --- |
+| `src/producer/producer.py` | Sends `MESSAGE_COUNT` messages to the queue in batches with `ServiceBusClient`, logs its progress, and exits 0 so the `Job` completes. |
+| `src/consumer/consumer.py` | Receives batches of `BATCH_SIZE`, spends `WORK_SECONDS` on each message and completes it. Deliberately resilient: a message whose lock is lost or whose AMQP link drops before it is settled is logged and skipped (Service Bus redelivers it), and a receiver failure reconnects rather than exiting, because a crash-looping consumer would burn the queue's `maxDeliveryCount` and dead-letter the backlog instead of processing it. |
+| `src/{producer,consumer}/requirements.txt` | The pinned `azure-servicebus` dependency, installed at image build time so the pods start immediately. |
+| `src/{producer,consumer}/Dockerfile` | Two-stage build on `python:3.13-slim` that installs the dependencies into a virtual environment and runs as a non-root user. |
+
 ## How it works
 
 **The scaling loop.** The `ScaledObject` names the consumer `Deployment` as its target and declares one `azure-servicebus` trigger with `messageCount: "5"`. The KEDA operator polls the queue's active message count every five seconds. While the queue is empty the Deployment stays at zero replicas. As soon as messages appear the operator activates it to one replica and publishes the count as an external metric, and the HorizontalPodAutoscaler that KEDA created (`keda-hpa-sb-scaler`) raises the replica count toward `ceil(messages / 5)`, capped at `maxReplicaCount: 4`. When the queue is empty again the autoscaler scales the Deployment back to zero after the `cooldownPeriod`.

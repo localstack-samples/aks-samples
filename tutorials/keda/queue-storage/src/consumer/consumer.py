@@ -22,6 +22,7 @@ import sys
 import time
 from types import FrameType
 
+from azure.core.exceptions import AzureError
 from azure.identity import DefaultAzureCredential
 from azure.storage.queue import QueueClient
 
@@ -79,15 +80,22 @@ def main() -> None:
                 messages_per_page=batch_size, visibility_timeout=VISIBILITY_TIMEOUT_SECONDS
             ):
                 received += 1
-                if not running:
-                    # Make the message visible again so another replica picks it up promptly, instead
-                    # of waiting out its visibility timeout.
-                    queue_client.update_message(message, visibility_timeout=0)
-                    continue
-                time.sleep(work_seconds)
-                queue_client.delete_message(message)
-                processed += 1
-                LOG.info("Processed message [%s]: %s", processed, message.content)
+                try:
+                    if not running:
+                        # Make the message visible again so another replica picks it up promptly,
+                        # instead of waiting out its visibility timeout.
+                        queue_client.update_message(message, visibility_timeout=0)
+                        continue
+                    time.sleep(work_seconds)
+                    queue_client.delete_message(message)
+                    processed += 1
+                    LOG.info("Processed message [%s]: %s", processed, message.content)
+                except AzureError as error:
+                    # Storage queues give at-least-once delivery: a message whose visibility timeout
+                    # expired before it could be deleted simply becomes visible again and is
+                    # redelivered. Logging and moving on is therefore the correct behaviour; exiting
+                    # here would crash-loop the pod and stall the backlog instead of draining it.
+                    LOG.warning("Could not process a message, it will be redelivered: %s", error)
             if not received:
                 LOG.info("The [%s] queue is empty, waiting...", queue_name)
                 time.sleep(work_seconds)

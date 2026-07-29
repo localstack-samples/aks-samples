@@ -52,6 +52,31 @@ cd keda/queue-storage/scripts
 # ./09-cleanup.sh --disable-keda # also remove the KEDA add-on
 ```
 
+### Kubernetes manifests
+
+Every manifest in [scripts/](scripts/) is valid, applyable YAML whose environment-specific fields are empty strings or placeholders; the deploy scripts fill them in with `yq`, which is why the same files work against the emulator and against Azure without edits. Note what is missing: there is no `secret.yml`, because nothing in this tutorial holds a data-plane credential.
+
+| Manifest | What it creates | Filled in at apply time |
+| --- | --- | --- |
+| `namespace.yml` | The `keda-queue-storage-sample` namespace that holds everything else. | The namespace name. |
+| `serviceaccount.yml` | `queue-app`, the service account both applications run as, annotated so the workload-identity webhook projects a token for the shared managed identity. | The identity's client id and the tenant id. |
+| `configmap.yml` | `queue-app-config`, the non-secret settings both applications read as environment variables. | The queue endpoint and name, the message count, the seconds of work per message and the batch size. |
+| `deployment.yml` | `queue-consumer`, the workload KEDA scales, at `replicas: 0`, labelled `azure.workload.identity/use: "true"` and running as `queue-app`. | The consumer image (from the registry's login server), the pull policy and the config map name. |
+| `triggerauthentication.yml` | `queue-trigger-auth`, which tells KEDA to authenticate as the shared managed identity with workload identity. | The managed identity's client id. |
+| `scaledobject.yml` | `queue-scaler`, the trigger and the scaling bounds. KEDA turns it into the `keda-hpa-queue-scaler` autoscaler. | The queue and account names, the queue-length threshold, the derived `endpointSuffix`, and the polling, cooldown and replica bounds. |
+| `producer-job.yml` | `queue-producer`, the `Job` that fills the queue, with the same workload-identity label and service account as the consumer. | The producer image, the pull policy and the config map name. |
+
+### Applications
+
+The producer and the consumer are separate Python applications with their own dependencies and their own image, built from `src/` and pushed to the registry attached to the cluster.
+
+| Path | What it is |
+| --- | --- |
+| `src/producer/producer.py` | Sends `MESSAGE_COUNT` messages with `QueueClient` and `DefaultAzureCredential`, so even the producer authenticates with workload identity, then exits 0 so the `Job` completes. |
+| `src/consumer/consumer.py` | Receives pages of `BATCH_SIZE` with `DefaultAzureCredential`, spends `WORK_SECONDS` on each message and deletes it. Resilient by design: a message whose visibility timeout expired before it could be deleted is logged and skipped, because storage queues redeliver it, and crashing would stall the backlog instead of draining it. |
+| `src/{producer,consumer}/requirements.txt` | The pinned `azure-identity` and `azure-storage-queue` dependencies, installed at image build time. |
+| `src/{producer,consumer}/Dockerfile` | Two-stage build on `python:3.13-slim` that installs the dependencies into a virtual environment and runs as a non-root user. |
+
 ## How it works
 
 ### One identity, three workloads, no secrets

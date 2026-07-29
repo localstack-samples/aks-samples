@@ -22,6 +22,7 @@ import sys
 import time
 from types import FrameType
 
+from azure.core.exceptions import AzureError
 from azure.eventhub import EventData, EventHubConsumerClient, PartitionContext
 from azure.eventhub.extensions.checkpointstoreblob import BlobCheckpointStore
 
@@ -83,7 +84,20 @@ def on_event(partition_context: PartitionContext, event: EventData | None) -> No
 
     # Advance the consumer group's cursor for this partition. This is the write the scaler reads to
     # compute the lag, so it has to happen for the Deployment to ever scale back to zero.
-    partition_context.update_checkpoint(event)
+    #
+    # A failed checkpoint write must not kill the pod: Event Hubs gives at-least-once delivery, so
+    # the events since the last successful checkpoint are simply re-read (by this replica or, after a
+    # rebalance, by another one) and checkpointed on a later pass. Crashing here would instead
+    # crash-loop the Deployment and leave the lag permanently above the threshold.
+    try:
+        partition_context.update_checkpoint(event)
+    except AzureError as error:
+        LOG.warning(
+            "Could not checkpoint partition [%s], the events will be re-read: %s",
+            partition_context.partition_id,
+            error,
+        )
+        return
 
     processed += 1
     LOG.info(

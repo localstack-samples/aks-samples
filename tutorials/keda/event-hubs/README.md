@@ -16,6 +16,31 @@ The cluster-creation scripts already pass `--enable-keda` and `--enable-oidc-iss
 
 The three KEDA tutorials (`service-bus`, `queue-storage`, `event-hubs`) share one user-assigned managed identity, defined in [../00-variables.sh](../00-variables.sh). The `keda-operator` service account exists once, in `kube-system`, so a single shared identity is what lets them coexist on the same cluster: whichever tutorial you run first creates the identity and annotates the operator, and the others find both already in place.
 
+### Kubernetes manifests
+
+Every manifest in [scripts/](scripts/) is valid, applyable YAML whose environment-specific fields are empty strings or placeholders; the deploy scripts fill them in with `yq`, which is why the same files work against the emulator and against Azure without edits. Note what is missing: there is no `triggerauthentication.yml`, because this trigger reads its connection strings from the scale target's environment instead of authenticating as an identity.
+
+| Manifest | What it creates | Filled in at apply time |
+| --- | --- | --- |
+| `namespace.yml` | The `keda-event-hubs-sample` namespace that holds everything else. | The namespace name. |
+| `configmap.yml` | `eh-app-config`, the non-secret settings both applications read as environment variables. | The event hub name, the consumer group, the checkpoint container, the message count and the seconds of work per event. |
+| `secret.yml` | `eh-connection`, holding the event hub and storage connection strings. Its key names are what the trigger's `connectionFromEnv` and `storageConnectionFromEnv` refer to, so they must not drift. | Both connection strings, base64 encoded and used verbatim as Azure returned them. |
+| `deployment.yml` | `eh-consumer`, the workload KEDA scales, at `replicas: 0`. | The consumer image (from the registry's login server), the pull policy, and the config map and secret names. |
+| `scaledobject.yml` | `eh-scaler`, the trigger and the scaling bounds. KEDA turns it into the `keda-hpa-eh-scaler` autoscaler. | The consumer group, the unprocessed-event threshold, the checkpoint container, and the polling, cooldown and replica bounds. |
+| `producer-job.yml` | `eh-producer`, the `Job` that sends the events. | The producer image, the pull policy, and the config map and secret names. |
+
+### Applications
+
+The producer and the consumer are separate Python applications with their own dependencies and their own image, built from `src/` and pushed to the registry attached to the cluster.
+
+| Path | What it is |
+| --- | --- |
+| `src/producer/producer.py` | Sends `MESSAGE_COUNT` events in batches with `EventHubProducerClient`, spreading them across the hub's partitions, then exits 0 so the `Job` completes. |
+| `src/consumer/consumer.py` | Receives events with `EventHubConsumerClient` and a `BlobCheckpointStore`, spends `WORK_SECONDS` on each one and checkpoints it. The checkpoint is the load-bearing part: it is the write the scaler reads to compute the lag, so without it the workload would never scale back to zero. A failed checkpoint write is logged and the events are re-read rather than crashing the pod. |
+| `src/producer/requirements.txt` | The pinned `azure-eventhub` dependency. |
+| `src/consumer/requirements.txt` | `azure-eventhub` plus `azure-eventhub-checkpointstoreblob` for the blob checkpoint store. |
+| `src/{producer,consumer}/Dockerfile` | Two-stage build on `python:3.13-slim` that installs the dependencies into a virtual environment and runs as a non-root user. |
+
 ## How it works
 
 Run the numbered scripts in order. Each one sources [00-variables.sh](scripts/00-variables.sh) and is idempotent, so it can be re-run safely.
