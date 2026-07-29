@@ -32,7 +32,7 @@ flowchart LR
 
     subgraph azure["Azure"]
         subgraph account["Storage account"]
-            queue[("jobs<br/>queue")]
+            queue(["jobs<br/>queue"])
         end
     end
 

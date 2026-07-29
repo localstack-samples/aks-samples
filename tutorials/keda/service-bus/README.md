@@ -30,7 +30,7 @@ flowchart LR
 
     subgraph azure["Azure"]
         subgraph sbns["Service Bus namespace"]
-            queue[("work-items<br/>queue")]
+            queue(["work-items<br/>queue"])
         end
     end
 

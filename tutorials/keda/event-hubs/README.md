@@ -28,10 +28,10 @@ flowchart LR
 
     subgraph azure["Azure"]
         subgraph ehns["Event Hubs namespace"]
-            hub[("events<br/>event hub, 2 partitions")]
+            hub[["events<br/>event hub, 2 partitions"]]
         end
         subgraph account["Storage account"]
-            checkpoints[("eh-checkpoints<br/>blob container")]
+            checkpoints["eh-checkpoints<br/>blob container"]
         end
     end
 
