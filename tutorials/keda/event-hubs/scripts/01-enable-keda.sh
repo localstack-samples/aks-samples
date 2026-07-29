@@ -79,4 +79,3 @@ fi
 KEDA_VERSION=$(kubectl get crd/$KEDA_SCALED_OBJECT_CRD \
   --output jsonpath='{.metadata.labels.app\.kubernetes\.io/version}' 2>/dev/null)
 echo "The KEDA add-on is installed in the [$KEDA_NAMESPACE] namespace, version [$KEDA_VERSION]"
-echo "Run 02-create-managed-identity.sh next: it binds the operator to the managed identity and restarts it"

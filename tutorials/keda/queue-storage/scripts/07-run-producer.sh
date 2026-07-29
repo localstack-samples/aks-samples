@@ -85,4 +85,3 @@ fi
 
 echo "The [$PRODUCER_JOB_NAME] job completed:"
 kubectl logs job/$PRODUCER_JOB_NAME --namespace $NAMESPACE --tail=5
-echo "Run 08-watch-scaling.sh now to watch KEDA scale the [$DEPLOYMENT_NAME] deployment out and back to zero"
