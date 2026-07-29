@@ -98,9 +98,27 @@ else
   echo "The [$FEDERATED_IDENTITY_NAME_KEDA] federated credential already exists"
 fi
 
-# Bind the operator to the identity. The annotation tells the workload-identity webhook which
-# identity to project a token for; the operator only picks it up when its pods restart, so the
-# restart is skipped when the annotation is already the one we want.
+# The KEDA add-on owns the operator: AKS installs the keda-operator service account and deployment in
+# kube-system when --enable-keda is set, so this tutorial never creates them, it only binds them to the
+# managed identity. Confirm they are there first, otherwise the annotation and the restart below fail
+# with a bare NotFound that says nothing about the cause.
+kubectl get serviceaccount $KEDA_OPERATOR_SERVICE_ACCOUNT --namespace $KEDA_NAMESPACE &>/dev/null
+SERVICE_ACCOUNT_EXISTS=$?
+kubectl get deployment $KEDA_OPERATOR_DEPLOYMENT --namespace $KEDA_NAMESPACE &>/dev/null
+DEPLOYMENT_EXISTS=$?
+if [[ $SERVICE_ACCOUNT_EXISTS -ne 0 || $DEPLOYMENT_EXISTS -ne 0 ]]; then
+  echo "The KEDA add-on has not installed the [$KEDA_OPERATOR_SERVICE_ACCOUNT] service account and the [$KEDA_OPERATOR_DEPLOYMENT] deployment in the [$KEDA_NAMESPACE] namespace yet"
+  echo "Run 01-enable-keda.sh first: it enables the add-on and waits for it to come up"
+  kubectl get serviceaccount,deployment --namespace $KEDA_NAMESPACE 2>/dev/null | grep keda
+  exit 1
+fi
+
+# Bind the operator to the identity. The annotation tells the workload-identity webhook which identity
+# to project a token for, and the webhook applies it when a pod is admitted, so pods that were already
+# running do not have it: the operator has to be restarted for the binding to take effect. This is the
+# step the Microsoft tutorial calls out as well.
+# https://learn.microsoft.com/en-us/azure/aks/keda-workload-identity
+# The restart is skipped when the annotation is already the one we want.
 CURRENT_CLIENT_ID=$(kubectl get serviceaccount $KEDA_OPERATOR_SERVICE_ACCOUNT \
   --namespace $KEDA_NAMESPACE \
   --output jsonpath='{.metadata.annotations.azure\.workload\.identity/client-id}' 2>/dev/null)
