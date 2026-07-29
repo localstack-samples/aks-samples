@@ -308,3 +308,16 @@ assign_role "$STORAGE_ROLE" "$STORAGE_ACCOUNT_ID" "the [$STORAGE_ACCOUNT_NAME] s
 if [[ $? -ne 0 ]]; then
   exit 1
 fi
+
+# Print all the resources in the resource group, so the user can see what was created and what already existed
+echo "The [$AKS_RESOURCE_GROUP_NAME] resource group contains the following resources:"
+az resource list \
+	--resource-group $AKS_RESOURCE_GROUP_NAME \
+	--output table
+
+# Print all the event hubs in the namespace, so the user can see what was created and what already existed
+echo "The [$EVENT_HUBS_NAMESPACE_NAME] Event Hubs namespace contains the following event hubs:"
+az eventhubs eventhub list \
+	--namespace-name $EVENT_HUBS_NAMESPACE_NAME \
+	--resource-group $AKS_RESOURCE_GROUP_NAME \
+	--output table

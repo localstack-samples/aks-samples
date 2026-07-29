@@ -8,6 +8,43 @@ The KEDA operator authenticates to Azure with [Microsoft Entra Workload ID](http
 
 The producer and consumer applications themselves use the namespace connection string. That is a deliberate difference from the scaler: the applications speak AMQP, and the emulator's AMQP listener is plain TCP (its connection strings carry `UseDevelopmentEmulator=true`), a mode that has no Microsoft Entra variant. The scaler instead reads the queue's message count over the HTTPS management API, where workload identity works on both targets. The sibling [queue-storage](../queue-storage/) tutorial shows workload identity end to end, for the scaler and for the applications.
 
+## Architecture
+
+The producer and the consumer are two workloads in the same Kubernetes namespace inside the AKS cluster. The producer fills the Service Bus queue, the consumer drains it, and the KEDA add-on in `kube-system` reads the queue's depth to decide how many consumer replicas should exist.
+
+```mermaid
+flowchart LR
+    subgraph aks["Azure Kubernetes Service cluster"]
+        subgraph kubesystem["kube-system: KEDA add-on"]
+            operator["keda-operator"]
+            metrics["keda-metrics-apiserver"]
+            admission["keda-admission"]
+        end
+        subgraph appns["namespace keda-service-bus-sample"]
+            producer["sb-producer<br/>Job"]
+            consumer["sb-consumer<br/>Deployment, 0 to 4 replicas"]
+            scaledobject["sb-scaler<br/>ScaledObject"]
+            hpa["keda-hpa-sb-scaler<br/>HorizontalPodAutoscaler"]
+        end
+    end
+
+    subgraph azure["Azure"]
+        subgraph sbns["Service Bus namespace"]
+            queue[("work-items<br/>queue")]
+        end
+    end
+
+    producer -->|"sends 100 messages"| queue
+    queue -->|"receives and completes messages"| consumer
+    operator -->|"reads activeMessageCount<br/>with workload identity"| queue
+    scaledobject -.->|"read by"| operator
+    operator -->|"creates and owns"| hpa
+    operator -->|"publishes external metric"| metrics
+    metrics -->|"serves the metric"| hpa
+    hpa -->|"scales from zero and back"| consumer
+    admission -.->|"validates"| scaledobject
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [../00-variables.sh](../00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, registry `localacrtest`, location `ItalyNorth`) must match the cluster those scripts create; edit them if you changed their `prefix`, `suffix` or `location`.

@@ -6,6 +6,48 @@
 
 This tutorial creates an Event Hubs namespace with one event hub, a dedicated consumer group, and a storage account whose blob container holds that consumer group's checkpoints. It then deploys a Python consumer that starts at **zero replicas**, and a producer that runs as a Kubernetes `Job` and sends a burst of events. KEDA observes the lag, activates the consumer, scales it out while it catches up, and returns it to zero when it has. Everything runs unchanged against a real AKS cluster and against the [LocalStack for Azure](https://docs.localstack.cloud/azure/) emulator.
 
+## Architecture
+
+The producer and the consumer are two workloads in the same Kubernetes namespace inside the AKS cluster. The producer sends events to the event hub, the consumer reads them and records its progress as checkpoints in blob storage, and the KEDA add-on in `kube-system` compares the two to work out the lag that drives the scaling.
+
+```mermaid
+flowchart LR
+    subgraph aks["Azure Kubernetes Service cluster"]
+        subgraph kubesystem["kube-system: KEDA add-on"]
+            operator["keda-operator"]
+            metrics["keda-metrics-apiserver"]
+            admission["keda-admission"]
+        end
+        subgraph appns["namespace keda-event-hubs-sample"]
+            producer["eh-producer<br/>Job"]
+            consumer["eh-consumer<br/>Deployment, 0 to 4 replicas"]
+            scaledobject["eh-scaler<br/>ScaledObject"]
+            hpa["keda-hpa-eh-scaler<br/>HorizontalPodAutoscaler"]
+        end
+    end
+
+    subgraph azure["Azure"]
+        subgraph ehns["Event Hubs namespace"]
+            hub[("events<br/>event hub, 2 partitions")]
+        end
+        subgraph account["Storage account"]
+            checkpoints[("eh-checkpoints<br/>blob container")]
+        end
+    end
+
+    producer -->|"sends 100 events"| hub
+    hub -->|"receives events"| consumer
+    consumer -->|"writes checkpoints"| checkpoints
+    operator -->|"reads lastEnqueuedSequenceNumber"| hub
+    operator -->|"reads the consumer group checkpoints"| checkpoints
+    scaledobject -.->|"read by"| operator
+    operator -->|"creates and owns"| hpa
+    operator -->|"publishes external metric"| metrics
+    metrics -->|"serves the metric"| hpa
+    hpa -->|"scales from zero and back"| consumer
+    admission -.->|"validates"| scaledobject
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [../00-variables.sh](../00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, location `ItalyNorth`) must match the cluster the script creates; edit them if you changed the cluster script's `prefix`, `suffix`, or `location`.

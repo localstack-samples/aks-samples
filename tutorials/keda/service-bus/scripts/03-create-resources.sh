@@ -127,3 +127,16 @@ else
     sleep $SLEEP
   done
 fi
+
+# Print all the resources in the resource group, so the user can see what was created and what already existed
+echo "The [$AKS_RESOURCE_GROUP_NAME] resource group contains the following resources:"
+az resource list \
+	--resource-group $AKS_RESOURCE_GROUP_NAME \
+	--output table
+
+# Print all the queues in the namespace, so the user can see what was created and what already existed
+echo "The [$SERVICE_BUS_NAMESPACE_NAME] Service Bus namespace contains the following queues:"
+az servicebus queue list \
+	--namespace-name $SERVICE_BUS_NAMESPACE_NAME \
+	--resource-group $AKS_RESOURCE_GROUP_NAME \
+	--output table

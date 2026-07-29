@@ -170,3 +170,16 @@ else
     sleep $SLEEP
   done
 fi
+
+# Print all the resources in the resource group, so the user can see what was created and what already existed
+echo "The [$AKS_RESOURCE_GROUP_NAME] resource group contains the following resources:"
+az resource list \
+	--resource-group $AKS_RESOURCE_GROUP_NAME \
+	--output table
+
+# Print all the queues in the storage account, so the user can see what was created and what already existed
+echo "The [$STORAGE_ACCOUNT_NAME] storage account contains the following queues:"
+az storage queue list \
+	--account-name $STORAGE_ACCOUNT_NAME \
+	"${QUEUE_AUTHENTICATION[@]}" \
+	--output table

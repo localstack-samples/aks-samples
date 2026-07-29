@@ -9,6 +9,46 @@ A producer Job sends 100 messages, the `ScaledObject` activates the consumer Dep
 It is the only one of the three KEDA tutorials that uses [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) end to end.
 The KEDA scaler **and** both applications authenticate with the same shared user-assigned managed identity, through their own federated identity credentials and their own service accounts, so there is **no connection string and no Kubernetes Secret anywhere in this tutorial**: the only credential is a projected service account token that Kubernetes rotates on its own, and the only Azure grant is one `Storage Queue Data Contributor` role assignment on the storage account.
 
+## Architecture
+
+The producer and the consumer are two workloads in the same Kubernetes namespace inside the AKS cluster, both running as the federated `queue-app` service account. The producer fills the storage queue, the consumer drains it, and the KEDA add-on in `kube-system` reads the queue's depth to decide how many consumer replicas should exist. Every arrow that touches Azure is authenticated with workload identity.
+
+```mermaid
+flowchart LR
+    subgraph aks["Azure Kubernetes Service cluster"]
+        subgraph kubesystem["kube-system: KEDA add-on"]
+            operator["keda-operator"]
+            metrics["keda-metrics-apiserver"]
+            admission["keda-admission"]
+        end
+        subgraph appns["namespace keda-queue-storage-sample"]
+            serviceaccount["queue-app<br/>ServiceAccount, federated"]
+            producer["queue-producer<br/>Job"]
+            consumer["queue-consumer<br/>Deployment, 0 to 4 replicas"]
+            scaledobject["queue-scaler<br/>ScaledObject"]
+            hpa["keda-hpa-queue-scaler<br/>HorizontalPodAutoscaler"]
+        end
+    end
+
+    subgraph azure["Azure"]
+        subgraph account["Storage account"]
+            queue[("jobs<br/>queue")]
+        end
+    end
+
+    producer -->|"sends 100 messages<br/>with workload identity"| queue
+    queue -->|"receives and deletes messages<br/>with workload identity"| consumer
+    operator -->|"reads approximateMessagesCount<br/>with workload identity"| queue
+    serviceaccount -.->|"identity used by"| producer
+    serviceaccount -.->|"identity used by"| consumer
+    scaledobject -.->|"read by"| operator
+    operator -->|"creates and owns"| hpa
+    operator -->|"publishes external metric"| metrics
+    metrics -->|"serves the metric"| hpa
+    hpa -->|"scales from zero and back"| consumer
+    admission -.->|"validates"| scaledobject
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [../00-variables.sh](../00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, location `ItalyNorth`) must match the cluster the script creates; edit them if you changed the cluster script's `prefix`, `suffix`, or `location`. The cluster must have the OIDC issuer and the workload identity webhook enabled, which those scripts do.
