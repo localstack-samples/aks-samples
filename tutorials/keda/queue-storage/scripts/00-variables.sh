@@ -4,8 +4,10 @@
 # It first pulls in the values shared by the three KEDA tutorials (cluster, ACR, shared managed
 # identity, scaling knobs), then adds the ones specific to this one.
 
-# Variables
-source ../../00-variables.sh
+# Variables. The shared file is located relative to THIS file, not to the working directory: a bare
+# `source ../../00-variables.sh` resolves against $PWD, so it works only when the caller has already
+# cd'd into this folder and fails for anything that sources this file by path from somewhere else.
+source "$(dirname "${BASH_SOURCE[0]}")/../../00-variables.sh"
 
 # Timings, overriding the shared defaults for this tutorial only.
 #
