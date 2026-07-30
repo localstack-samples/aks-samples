@@ -1,13 +1,16 @@
 # Non-secret configuration passed to both the producer and the consumer as environment variables.
-# Every value is patched from 00-variables.sh at apply time.
+# Every value is patched from 00-variables.sh at apply time; the empty strings here are placeholders.
+#
+# The pods receive these through envFrom.configMapRef, so each key below becomes an environment
+# variable of the same name. Credentials are not here: they live in secret.yml.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: eh-app-config
-  namespace: keda-event-hubs-sample
+  name: eh-app-config # Patched from CONFIG_MAP_NAME; must match the envFrom references.
+  namespace: keda-event-hubs-sample # Patched from NAMESPACE.
 data:
-  EVENTHUB_NAME: ""
-  CONSUMER_GROUP: ""
-  CHECKPOINT_CONTAINER: ""
-  MESSAGE_COUNT: ""
-  WORK_SECONDS: ""
+  EVENTHUB_NAME: "" # Hub the producer sends to and the consumer reads from. Patched from EVENT_HUB_NAME.
+  CONSUMER_GROUP: "" # Consumer group the consumer joins; the scaler measures this group's lag. Patched from EVENT_HUB_CONSUMER_GROUP.
+  CHECKPOINT_CONTAINER: "" # Blob container the consumer checkpoints into and the scaler reads. Patched from CHECKPOINT_CONTAINER.
+  MESSAGE_COUNT: "" # How many events the producer sends in one run. Read by the producer only. Patched from MESSAGE_COUNT.
+  WORK_SECONDS: "" # Seconds of simulated work per event, which is what paces the drain. Read by the consumer only. Patched from WORK_SECONDS.

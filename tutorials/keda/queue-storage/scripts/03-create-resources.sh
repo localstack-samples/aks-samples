@@ -182,4 +182,5 @@ echo "The [$STORAGE_ACCOUNT_NAME] storage account contains the following queues:
 az storage queue list \
 	--account-name $STORAGE_ACCOUNT_NAME \
 	"${QUEUE_AUTHENTICATION[@]}" \
-	--output table
+	--output table \
+	--only-show-errors

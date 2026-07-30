@@ -68,6 +68,17 @@ SCALE_DOWN_STABILIZATION_SECONDS=10
 SCALE_UP_PODS=1
 SCALE_UP_PERIOD_SECONDS=15
 
+# The remaining fields of the ScaledObject's behavior block. They live here, and not in the manifests,
+# so that every tuning knob comes from one place: 06-deploy-consumer.sh patches all of them with yq
+# before applying scaledobject.yml, which means editing the manifest alone has no effect.
+#
+# A scale-up stabilization window of zero makes the autoscaler act on the newest metric rather than on
+# the highest of the last few, so a spike is reacted to immediately. Scale-in stays aggressive: once
+# the backlog is gone there is nothing to be gradual about, so the whole surplus may go in one period.
+SCALE_UP_STABILIZATION_SECONDS=0
+SCALE_DOWN_PERCENT=100
+SCALE_DOWN_PERIOD_SECONDS=15
+
 # Polling knobs used by the wait loops
 TIMEOUT_SECONDS=300
 SLEEP=5

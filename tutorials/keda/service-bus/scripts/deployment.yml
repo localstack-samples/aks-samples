@@ -8,31 +8,37 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sb-consumer
-  namespace: keda-service-bus-sample
+  namespace: keda-service-bus-sample # Patched from NAMESPACE.
   labels:
     app: sb-consumer
 spec:
-  replicas: 0
+  replicas: 0 # Start scaled to zero and let KEDA own the count from here on. Patched from MIN_REPLICAS.
   selector:
     matchLabels:
-      app: sb-consumer
+      app: sb-consumer # Must match the pod template labels below, or the Deployment is rejected.
   template:
     metadata:
       labels:
         app: sb-consumer
     spec:
       containers:
-        - name: consumer
-          image: <your-registry>/keda-servicebus-consumer:v1
-          imagePullPolicy: Always
+        - name: consumer # Container name within the pod; the scripts use it for `kubectl logs -c`.
+          image: <your-registry>/keda-servicebus-consumer:v1 # Patched at apply time from the ACR login server.
+          imagePullPolicy: Always # Always re-pull, so rebuilding the image with the same tag takes effect. Patched from IMAGE_PULL_POLICY.
           envFrom:
+            # Both sources are flattened into the container's environment. Order matters only on a key
+            # collision, where the later source wins; these two share no keys.
             - configMapRef:
-                name: sb-app-config
+                name: sb-app-config # Non-secret settings. Patched from CONFIG_MAP_NAME.
             - secretRef:
-                name: sb-connection
+                name: sb-connection # The namespace connection string. Patched from SECRET_NAME.
+          # Requests are what the scheduler reserves and what decides whether a replica fits on a node;
+          # limits are the ceiling the kubelet enforces at runtime. Both are set so the ramp is honest:
+          # without a request, four replicas could be packed onto capacity that cannot really run them.
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 50m # 0.05 of a core. The consumer spends most of its time sleeping or awaiting I/O.
+              memory: 128Mi # Enough for the Python runtime and the Service Bus SDK client.
             limits:
-              memory: 256Mi
+              cpu: 500m # 0.5 of a core. Exceeding this throttles the container rather than killing it.
+              memory: 256Mi # Exceeding this is an OOMKill, so it is set well above the steady-state usage.

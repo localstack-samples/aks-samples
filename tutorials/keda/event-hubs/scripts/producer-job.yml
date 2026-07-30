@@ -7,23 +7,25 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: eh-producer
-  namespace: keda-event-hubs-sample
+  name: eh-producer # Patched from PRODUCER_JOB_NAME.
+  namespace: keda-event-hubs-sample # Patched from NAMESPACE.
 spec:
-  backoffLimit: 2
-  ttlSecondsAfterFinished: 300
+  backoffLimit: 2 # Retries before the Job is marked failed. Low on purpose: a send that fails twice is a real error, not a blip.
+  ttlSecondsAfterFinished: 300 # Delete the finished Job (and its pod) after five minutes, so re-runs start clean.
   template:
     metadata:
       labels:
         app: eh-producer
     spec:
-      restartPolicy: Never
+      restartPolicy: Never # Required for Jobs that must not retry in place; backoffLimit creates a fresh pod instead.
       containers:
-        - name: producer
-          image: <your-registry>/keda-eventhub-producer:v1
-          imagePullPolicy: Always
+        - name: producer # Container name within the pod; the scripts use it for `kubectl logs -c`.
+          image: <your-registry>/keda-eventhub-producer:v1 # Patched at apply time from the ACR login server.
+          imagePullPolicy: Always # Always re-pull, so rebuilding the image with the same tag takes effect. Patched from IMAGE_PULL_POLICY.
           envFrom:
+            # The producer needs EVENTHUB_NAME and MESSAGE_COUNT from the config map and
+            # EVENTHUB_CONNECTION from the secret. It never reads the storage connection string.
             - configMapRef:
-                name: eh-app-config
+                name: eh-app-config # Non-secret settings. Patched from CONFIG_MAP_NAME.
             - secretRef:
-                name: eh-connection
+                name: eh-connection # The two connection strings. Patched from SECRET_NAME.
