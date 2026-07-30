@@ -29,6 +29,33 @@ The `keda-operator` service account exists once, in `kube-system`, and the annot
 
 Each tutorial's own README lists its scripts in order and explains what to expect from each one. Every script is idempotent, so a script can be re-run safely, and each tutorial ends with an assertion script that proves the scale-out and the scale-in actually happened instead of just printing state.
 
+## Running the three tutorials at once
+
+[run-producers.sh](run-producers.sh) submits messages to all three event sources in parallel, so the three consumer Deployments scale out and fall back to zero side by side and the whole story fits in a single [k9s](https://k9scli.io/) pane instead of three sequential runs.
+
+It assumes the work each tutorial does up front has already been done: the Azure resources provisioned and the consumer application deployed, each in its own namespace. Run `02-create-managed-identity.sh` through `06-deploy-consumer.sh` in all three tutorials first. The script verifies that each consumer Deployment exists before sending anything, and names the `06-deploy-consumer.sh` to run if one is missing, so a backlog is never left with nothing listening to it.
+
+It invokes the tutorials rather than reproducing them. Each `07-run-producer.sh` sources its own `00-variables.sh` through a relative path and applies manifests from its own folder, so the launcher runs each one in a subshell with that folder as the working directory. Message counts, producer images and manifests stay owned by the tutorials: change one and the launcher picks it up unedited.
+
+The three producers finish within about a second of each other, so the three backlogs land together and the deployments ramp in lockstep:
+
+| Elapsed | `eh-consumer` | `queue-consumer` | `sb-consumer` |
+| --- | --- | --- | --- |
+| 0s | 0/0 | 0/0 | 0/0 |
+| 30s | 4/4 | 4/4 | 4/4 |
+| 75s | 0/0 | 0/0 | 0/0 |
+
+The launcher itself returns after about fifteen seconds, with the deployments already at one or two replicas, which leaves time to switch to a watch. It prints both on exit:
+
+```bash
+k9s -A -c deployments        # then filter with: /consumer
+watch -n 1 'kubectl get deployment --all-namespaces | grep -- -consumer'
+```
+
+A single filter covers all three namespaces because `eh-consumer`, `queue-consumer` and `sb-consumer` are the only Deployments whose name ends in `-consumer`.
+
+Output is captured per tutorial rather than printed live, since three producers writing to one terminal interleave into noise, and replayed afterwards as one line each on success or the whole log for any producer that failed. `08-watch-scaling.sh` is deliberately not run: it asserts the same scale-out the watch is already showing, and it would narrate over the demo for several minutes. Run it per tutorial when you want the assertions rather than the visual.
+
 ## Resources
 
 - [KEDA](https://keda.sh/) and its [Azure scalers](https://keda.sh/docs/2.20/scalers/)
