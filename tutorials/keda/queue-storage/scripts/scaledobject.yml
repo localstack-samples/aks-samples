@@ -5,44 +5,54 @@
 # serves the queue endpoint minus the account label: queue.core.windows.net on real Azure, and the
 # emulator's queue host and gateway port on LocalStack. The suffix is derived from the ARM-returned
 # primaryEndpoints.queue at apply time, and cloud: Private is what allows a custom suffix.
+#
+# IMPORTANT: every field marked "patched from X" below is overwritten by 06-deploy-consumer.sh, which
+# pipes this file through yq before applying it. Editing those values here has no effect; change X in
+# 00-variables.sh instead. The values checked in are the shared defaults, kept so the manifest reads
+# as valid on its own.
 # https://keda.sh/docs/2.20/scalers/azure-storage-queue/
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: queue-scaler
-  namespace: keda-queue-storage-sample
+  name: queue-scaler # Name of this ScaledObject; the generated HPA is keda-hpa-<this>. Patched from SCALED_OBJECT_NAME.
+  namespace: keda-queue-storage-sample # Must be the namespace of the scale target. Patched from NAMESPACE.
 spec:
   scaleTargetRef:
-    name: queue-consumer
-  pollingInterval: 5
-  cooldownPeriod: 30
-  minReplicaCount: 0
-  maxReplicaCount: 4
+    name: queue-consumer # Name of the target Deployment/workload that KEDA manages. Patched from DEPLOYMENT_NAME.
+  pollingInterval: 5 # Time interval (in seconds) KEDA waits between checking the metric source. Patched from POLLING_INTERVAL.
+  cooldownPeriod: 30 # Delay (in seconds) after the last active trigger before scaling down to minReplicaCount. Patched from COOLDOWN_PERIOD.
+  minReplicaCount: 0 # Minimum number of replicas to scale down to (enables scale-to-zero when 0). Patched from MIN_REPLICAS.
+  maxReplicaCount: 4 # Upper limit on the total number of replicas KEDA can scale up to. Patched from MAX_REPLICAS.
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
         # Add replicas one at a time so the ramp is observable; see SCALE_UP_PODS in 00-variables.sh
-        # for why the HorizontalPodAutoscaler default is too aggressive for a demonstration.
+        # for why the HorizontalPodAutoscaler default is too aggressive for a demonstration. Note that
+        # this policy governs only the steps above the first: KEDA performs the 0 -> 1 activation
+        # itself, outside the autoscaler, so a ceiling of N leaves N-1 policy-driven steps.
         scaleUp:
-          stabilizationWindowSeconds: 0
-          selectPolicy: Max
+          stabilizationWindowSeconds: 0 # Time window (in seconds) to consider past metrics to prevent scale-up thrashing. Patched from SCALE_UP_STABILIZATION_SECONDS.
+          selectPolicy: Max # Strategy to choose highest recommendation when multiple scale-up policies are present.
           policies:
-            - type: Pods
-              value: 1
-              periodSeconds: 15
+            - type: Pods # Specifies whether scale-up steps are measured in absolute Pods or Percent.
+              value: 1 # Maximum amount of growth (1 pod) allowed per evaluation step. Patched from SCALE_UP_PODS.
+              periodSeconds: 15 # Time window (in seconds) over which the scale-up policy rate limit is applied. Patched from SCALE_UP_PERIOD_SECONDS.
         scaleDown:
-          stabilizationWindowSeconds: 10
+          stabilizationWindowSeconds: 10 # Time window (in seconds) metrics must remain low before scaling down begins. Patched from SCALE_DOWN_STABILIZATION_SECONDS.
           policies:
-            - type: Percent
-              value: 100
-              periodSeconds: 15
+            - type: Percent # Specifies whether scale-down steps are measured in Pods or Percent.
+              value: 100 # Maximum percentage of current pods allowed to be removed in one step. Patched from SCALE_DOWN_PERCENT.
+              periodSeconds: 15 # Time window (in seconds) over which the scale-down policy rate limit is applied. Patched from SCALE_DOWN_PERIOD_SECONDS.
   triggers:
-    - type: azure-queue
+    - type: azure-queue # KEDA scaler type used to fetch queue/event metrics.
       metadata:
-        queueName: ""
-        accountName: ""
-        queueLength: "5"
-        cloud: Private
-        endpointSuffix: ""
+        queueName: "" # Storage queue whose approximate message count drives the scaling. Patched from STORAGE_QUEUE_NAME.
+        accountName: "" # Storage account holding the queue; forms the account label of the URL. Patched from STORAGE_ACCOUNT_NAME.
+        queueLength: "5" # Target count of queued messages per active pod replica. Patched from SCALING_THRESHOLD.
+        cloud: Private # Required to accept a custom endpointSuffix; the named clouds hardcode their own.
+        endpointSuffix: "" # Host and port serving the queue REST API, minus the account label. Derived from primaryEndpoints.queue.
+      # Unlike Event Hubs, this trigger holds no connection string: it authenticates through the
+      # TriggerAuthentication below, which points the operator at the shared managed identity. The
+      # applications use that very same identity through their own service account.
       authenticationRef:
-        name: queue-trigger-auth
+        name: queue-trigger-auth # Must match the TriggerAuthentication. Patched from TRIGGER_AUTHENTICATION_NAME.

@@ -11,23 +11,25 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: queue-producer
-  namespace: keda-queue-storage-sample
+  name: queue-producer # Patched from PRODUCER_JOB_NAME.
+  namespace: keda-queue-storage-sample # Patched from NAMESPACE.
 spec:
-  backoffLimit: 2
-  ttlSecondsAfterFinished: 300
+  backoffLimit: 2 # Retries before the Job is marked failed. Low on purpose: a send that fails twice is a real error, not a blip.
+  ttlSecondsAfterFinished: 300 # Delete the finished Job (and its pod) after five minutes, so re-runs start clean.
   template:
     metadata:
       labels:
         app: queue-producer
-        azure.workload.identity/use: "true"
+        azure.workload.identity/use: "true" # Without this label the webhook does not mutate the pod and no token is projected.
     spec:
-      restartPolicy: Never
-      serviceAccountName: queue-app
+      restartPolicy: Never # Required for Jobs that must not retry in place; backoffLimit creates a fresh pod instead.
+      serviceAccountName: queue-app # The identity half of the chain; its annotations name the managed identity. Patched from SERVICE_ACCOUNT_NAME.
       containers:
-        - name: producer
-          image: <your-registry>/keda-queue-producer:v1
-          imagePullPolicy: Always
+        - name: producer # Container name within the pod; the scripts use it for `kubectl logs -c`.
+          image: <your-registry>/keda-queue-producer:v1 # Patched at apply time from the ACR login server.
+          imagePullPolicy: Always # Always re-pull, so rebuilding the image with the same tag takes effect. Patched from IMAGE_PULL_POLICY.
           envFrom:
+            # Only the config map: the producer authenticates with workload identity, so it needs
+            # QUEUE_ENDPOINT, QUEUE_NAME and MESSAGE_COUNT and no credential at all.
             - configMapRef:
-                name: queue-app-config
+                name: queue-app-config # Non-secret settings. Patched from CONFIG_MAP_NAME.

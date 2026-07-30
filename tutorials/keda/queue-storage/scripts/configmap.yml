@@ -2,14 +2,17 @@
 # Every value is patched at apply time: QUEUE_ENDPOINT from the ARM-returned primaryEndpoints.queue of
 # the storage account, the rest from 00-variables.sh. This config map is the only thing the pods
 # consume: the applications authenticate with Microsoft Entra Workload ID, so there is no secret.
+#
+# The pods receive these through envFrom.configMapRef, so each key below becomes an environment
+# variable of the same name.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: queue-app-config
-  namespace: keda-queue-storage-sample
+  name: queue-app-config # Patched from CONFIG_MAP_NAME; must match the envFrom references.
+  namespace: keda-queue-storage-sample # Patched from NAMESPACE.
 data:
-  QUEUE_ENDPOINT: ""
-  QUEUE_NAME: ""
-  MESSAGE_COUNT: ""
-  WORK_SECONDS: ""
-  BATCH_SIZE: ""
+  QUEUE_ENDPOINT: "" # Account URL the SDK targets, trailing slash stripped. Derived from primaryEndpoints.queue.
+  QUEUE_NAME: "" # Queue the producer sends to and the consumer receives from. Patched from STORAGE_QUEUE_NAME.
+  MESSAGE_COUNT: "" # How many messages the producer sends in one run. Read by the producer only. Patched from MESSAGE_COUNT.
+  WORK_SECONDS: "" # Seconds of simulated work per message, which is what paces the drain. Read by the consumer only. Patched from WORK_SECONDS.
+  BATCH_SIZE: "" # How many messages the consumer receives per call. Read by the consumer only. Patched from BATCH_SIZE.

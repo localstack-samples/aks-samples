@@ -7,6 +7,28 @@
 # Variables
 source ../../00-variables.sh
 
+# Timings, overriding the shared defaults for this tutorial only.
+#
+# These have to live here rather than in scaledobject.yml: 06-deploy-consumer.sh patches the manifest
+# with yq before applying it, so whatever pollingInterval, cooldownPeriod or scaleUp policy the YAML
+# carries is replaced by the values below. Editing the manifest alone has no effect.
+#
+# The values are tuned to keep a live demonstration short. The scaler is asked for the lag every
+# second, and the workload is deactivated ten seconds after the lag reaches zero, so the round trip
+# from zero to the ceiling and back fits in about a minute.
+POLLING_INTERVAL=1
+COOLDOWN_PERIOD=10
+SCALE_DOWN_STABILIZATION_SECONDS=10
+SCALE_UP_PERIOD_SECONDS=10
+
+# The backlog has to outlast the climb. The scaler clamps the lag it reports to
+# EVENT_HUB_PARTITION_COUNT * SCALING_THRESHOLD, so the autoscaler asks for the full partition count
+# as long as at least that many events are outstanding, but it only adds one replica per
+# SCALE_UP_PERIOD_SECONDS. Too small a backlog drains while the ramp is still climbing and the
+# deployment turns around before reaching the top. This many events keep the consumer at the ceiling
+# for about twenty seconds, and the round trip from zero and back takes about a minute.
+MESSAGE_COUNT=80
+
 # Azure Event Hubs. Real Azure (and the emulator) require the namespace name to be between 6 and 50
 # characters. The Standard SKU is the lowest one that supports more than one consumer group.
 EVENT_HUBS_NAMESPACE_NAME="${PREFIX}-eventhubs-${SUFFIX}"
@@ -15,7 +37,7 @@ EVENT_HUB_NAME="events"
 
 # The partitions of the hub are the unit of parallelism: Event Hubs gives each partition to one
 # consumer at a time, so no more than this many consumer replicas receive events concurrently.
-EVENT_HUB_PARTITION_COUNT=2
+EVENT_HUB_PARTITION_COUNT=4
 
 # The consumer group whose checkpoints the scaler reads. A dedicated one keeps the sample's cursor
 # separate from the $Default group any other reader may be using.

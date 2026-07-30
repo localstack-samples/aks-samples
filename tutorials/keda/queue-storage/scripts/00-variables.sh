@@ -7,6 +7,28 @@
 # Variables
 source ../../00-variables.sh
 
+# Timings, overriding the shared defaults for this tutorial only.
+#
+# These have to live here rather than in scaledobject.yml: 06-deploy-consumer.sh patches the manifest
+# with yq before applying it, so whatever pollingInterval, cooldownPeriod or scaleUp policy the YAML
+# carries is replaced by the values below. Editing the manifest alone has no effect.
+#
+# The values are tuned to keep a live demonstration short. The scaler is asked for the queue depth
+# every second, and the workload is deactivated ten seconds after the queue empties, so the round trip
+# from zero to the ceiling and back fits in about a minute.
+POLLING_INTERVAL=1
+COOLDOWN_PERIOD=10
+SCALE_DOWN_STABILIZATION_SECONDS=10
+SCALE_UP_PERIOD_SECONDS=10
+
+# The backlog has to outlast the climb. The autoscaler asks for ceil(backlog / SCALING_THRESHOLD)
+# replicas, capped at MAX_REPLICAS, but it only adds one of them per SCALE_UP_PERIOD_SECONDS, so it
+# reaches the ceiling only if MAX_REPLICAS * SCALING_THRESHOLD messages are still queued by the time
+# it gets there. Too small a backlog drains while the ramp is still climbing and the deployment turns
+# around before reaching the top. This many messages keep the consumer at the ceiling for about twenty
+# seconds, and the round trip from zero and back takes about a minute.
+MESSAGE_COUNT=80
+
 # Azure Storage. A storage account name must be 3 to 24 characters long and contain lowercase letters
 # and numbers only, hence the lowercase expansion of the shared prefix and suffix.
 # https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules
