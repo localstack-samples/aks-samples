@@ -139,4 +139,6 @@ echo "The [$SERVICE_BUS_NAMESPACE_NAME] Service Bus namespace contains the follo
 az servicebus queue list \
 	--namespace-name $SERVICE_BUS_NAMESPACE_NAME \
 	--resource-group $AKS_RESOURCE_GROUP_NAME \
-	--output table
+	--output table \
+	--query "[].{Name:name,MessageCount:messageCount,Location:location,MaxDeliveryCount:maxDeliveryCount}" \
+	--only-show-errors

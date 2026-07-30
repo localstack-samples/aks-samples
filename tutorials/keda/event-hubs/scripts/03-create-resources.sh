@@ -320,4 +320,5 @@ echo "The [$EVENT_HUBS_NAMESPACE_NAME] Event Hubs namespace contains the followi
 az eventhubs eventhub list \
 	--namespace-name $EVENT_HUBS_NAMESPACE_NAME \
 	--resource-group $AKS_RESOURCE_GROUP_NAME \
-	--output table
+	--output table \
+	--only-show-errors
