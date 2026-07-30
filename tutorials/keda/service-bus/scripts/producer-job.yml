@@ -1,0 +1,29 @@
+# Fills the queue so the scaler has a backlog to react to.
+#
+# A Job's pod template is immutable once created, so the script deletes any previous Job before
+# applying this one; ttlSecondsAfterFinished additionally lets the TTL-after-finished controller
+# reap the finished Job on its own.
+# https://kubernetes.io/docs/concepts/workloads/controllers/job/
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sb-producer
+  namespace: keda-service-bus-sample
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: sb-producer
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: producer
+          image: <your-registry>/keda-servicebus-producer:v1
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: sb-app-config
+            - secretRef:
+                name: sb-connection

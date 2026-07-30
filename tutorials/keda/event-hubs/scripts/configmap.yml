@@ -1,0 +1,13 @@
+# Non-secret configuration passed to both the producer and the consumer as environment variables.
+# Every value is patched from 00-variables.sh at apply time.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eh-app-config
+  namespace: keda-event-hubs-sample
+data:
+  EVENTHUB_NAME: ""
+  CONSUMER_GROUP: ""
+  CHECKPOINT_CONTAINER: ""
+  MESSAGE_COUNT: ""
+  WORK_SECONDS: ""

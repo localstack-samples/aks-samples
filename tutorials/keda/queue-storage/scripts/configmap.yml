@@ -1,0 +1,15 @@
+# Non-secret configuration passed to both the producer and the consumer as environment variables.
+# Every value is patched at apply time: QUEUE_ENDPOINT from the ARM-returned primaryEndpoints.queue of
+# the storage account, the rest from 00-variables.sh. This config map is the only thing the pods
+# consume: the applications authenticate with Microsoft Entra Workload ID, so there is no secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: queue-app-config
+  namespace: keda-queue-storage-sample
+data:
+  QUEUE_ENDPOINT: ""
+  QUEUE_NAME: ""
+  MESSAGE_COUNT: ""
+  WORK_SECONDS: ""
+  BATCH_SIZE: ""

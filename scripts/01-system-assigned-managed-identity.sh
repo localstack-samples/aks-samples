@@ -541,6 +541,7 @@ if [[ $? != 0 ]]; then
     --service-cidr $service_cidr \
 		--enable-acns \
     --enable-gateway-api \
+    --enable-keda \
     --enable-managed-identity \
     --enable-workload-identity \
     --enable-oidc-issuer \

@@ -1,0 +1,45 @@
+# The consumer Deployment, the workload KEDA scales.
+#
+# replicas: 0 is deliberate: the ScaledObject activates the Deployment when the queue has messages and
+# returns it to zero when the backlog is drained, so the sample starts from a scaled-to-zero state. The
+# image reference is patched at apply time from `az acr show --query loginServer`, because the emulator
+# and real Azure return different login servers.
+#
+# The pod template carries the azure.workload.identity/use: "true" label and runs as the queue-app
+# service account: together they make the workload-identity webhook project a service account token
+# into the pod and set AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_AUTHORITY_HOST and
+# AZURE_FEDERATED_TOKEN_FILE, which is all DefaultAzureCredential needs. envFrom therefore references
+# only the config map: the consumer holds no credential.
+# https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: queue-consumer
+  namespace: keda-queue-storage-sample
+  labels:
+    app: queue-consumer
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: queue-consumer
+  template:
+    metadata:
+      labels:
+        app: queue-consumer
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: queue-app
+      containers:
+        - name: consumer
+          image: <your-registry>/keda-queue-consumer:v1
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: queue-app-config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
