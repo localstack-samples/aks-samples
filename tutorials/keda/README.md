@@ -56,6 +56,20 @@ A single filter covers all three namespaces because `eh-consumer`, `queue-consum
 
 Output is captured per tutorial rather than printed live, since three producers writing to one terminal interleave into noise, and replayed afterwards as one line each on success or the whole log for any producer that failed. `08-watch-scaling.sh` is deliberately not run: it asserts the same scale-out the watch is already showing, and it would narrate over the demo for several minutes. Run it per tutorial when you want the assertions rather than the visual.
 
+## Listing everything the tutorials created
+
+[list-resources.sh](list-resources.sh) prints every Azure resource the three tutorials provision, in one pass: the resource group, the AKS cluster, the Event Hubs namespace and its hub, the storage account holding the Event Hubs checkpoints, the Queue Storage account and its queue, and the Service Bus namespace and its queue.
+
+**It assumes all three tutorials have been deployed.** Every section addresses a resource by name, so a tutorial you have not provisioned yet is reported by the Azure CLI as not found rather than skipped. Run `02-create-managed-identity.sh` through `06-deploy-consumer.sh` in all three tutorials first, exactly as [run-producers.sh](run-producers.sh) expects.
+
+Like the launcher, it resolves its own location, so it can be run from anywhere:
+
+```bash
+./tutorials/keda/list-resources.sh
+```
+
+Unlike the launcher, it needs the three tutorials' variables in one shell at the same time, and those files do not use disjoint names. `STORAGE_ACCOUNT_NAME` means the checkpoint account in [event-hubs](event-hubs/) and the queue account in [queue-storage](queue-storage/), and `ROLE`, `SECRET_NAME` and `TRIGGER_AUTHENTICATION_NAME` are each defined by two tutorials, so whatever is sourced last would silently win. The script therefore snapshots each diverging value under a tutorial-specific name immediately after sourcing its file. Keep that in mind if you write your own cross-tutorial script: either source in a subshell, as the launcher does, or snapshot before the next `source` overwrites what you need.
+
 ## Resources
 
 - [KEDA](https://keda.sh/) and its [Azure scalers](https://keda.sh/docs/2.20/scalers/)
