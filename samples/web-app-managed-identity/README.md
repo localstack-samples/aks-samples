@@ -13,6 +13,12 @@ Before installing the sample, make sure to create an [Azure Kubernetes Service (
 
 Both scripts enable the OIDC issuer and workload identity that this sample relies on. If you enable the Gateway path, also install the [Gateway API](https://gateway-api.sigs.k8s.io/) and [cert-manager](https://cert-manager.io/) add-ons from the root `scripts/` folder. All commands below are run from this sample's `scripts/` folder.
 
+## Architecture
+
+The following diagram illustrates the architecture of the solution:
+
+![Architecture Diagram](./images/architecture.png)
+
 ## Deployment workflow
 
 Run the numbered scripts in order from the `scripts/` folder:

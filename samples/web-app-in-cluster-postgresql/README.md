@@ -11,6 +11,12 @@ Before installing the sample, make sure to create an [Azure Kubernetes Service (
 
 All commands below are run from this sample's `scripts/` folder.
 
+## Architecture
+
+The following diagram illustrates the architecture of the solution:
+
+![Architecture Diagram](./images/architecture.png)
+
 ## Deployment workflow
 
 Run the numbered scripts in order from the `scripts/` folder:

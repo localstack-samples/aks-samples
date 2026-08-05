@@ -13,6 +13,12 @@ All commands below are run from this sample's `scripts/` folder.
 
 > LocalStack note: when running against the emulator, the `LOCALSTACK_URL` variable in [`00-variables.sh`](scripts/00-variables.sh) triggers installation of the LocalStack root CA so the app trusts the emulated endpoint. Set it to an empty value when targeting real Azure.
 
+## Architecture
+
+The following diagram illustrates the architecture of the solution:
+
+![Architecture Diagram](./images/architecture.png)
+
 ## Deployment workflow
 
 Run the numbered scripts in order from the `scripts/` folder:
