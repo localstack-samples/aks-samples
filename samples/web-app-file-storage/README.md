@@ -127,7 +127,13 @@ kubectl delete pv vacation-planner-file-pv --ignore-not-found
 kubectl delete storageclass vacation-planner-file-nfs --ignore-not-found
 ```
 
-The volume is created with `persistentVolumeReclaimPolicy: Retain`, so deleting it leaves the file share and the activities in place: the same share is picked up again the next time the sample is deployed. In dynamic mode the storage class reclaim policy is `Delete`, so the share the driver created goes away with the claim.
+The volume is created with `persistentVolumeReclaimPolicy: Retain`, so deleting it leaves the file share and the activities in place: the same share is picked up again the next time the sample is deployed. In dynamic mode the storage class reclaim policy is `Delete`, so the share the driver created goes away with the claim, while the storage account it created in the node resource group stays behind (the driver never deletes an account). Delete it by hand, or delete the whole resource group, when you are done:
+
+```bash
+az storage account list \
+  --resource-group $(az aks show --name local-aks-test --resource-group local-rg --query nodeResourceGroup --output tsv) \
+  --output table
+```
 
 ## Running on Azure
 

@@ -9,7 +9,11 @@ cd "$CURRENT_DIR" || exit
 # Local smoke test: no Azure resource is involved. In the cluster the app writes to an Azure file
 # share mounted by the Azure Files CSI driver, and here it writes to a directory on the host mounted
 # at the same path, which is all the app knows about its storage.
-ACTIVITIES_HOST_DIR="${TMPDIR:-/tmp}/${IMAGE_NAME}-activities"
+#
+# Under the user's cache directory rather than /tmp: the directory has to be world-writable for the
+# container's non-root user to write to it, and /tmp is shared with every other user on the machine.
+# A private cache directory is also shared with the Docker daemon by default on Docker Desktop.
+ACTIVITIES_HOST_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/${IMAGE_NAME}/activities"
 
 echo "Creating the local activities directory [$ACTIVITIES_HOST_DIR]..."
 mkdir -p "$ACTIVITIES_HOST_DIR"
