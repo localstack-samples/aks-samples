@@ -10,6 +10,8 @@ The stack works against both real Azure and the [LocalStack for Azure](https://d
 
 By default the user agent pool carries the `workload=batch` node label, the `dedicated=batch:NoSchedule` node taint, and the `costcenter=1234` scale-set tags, while the system agent pool carries the `team=platform` node label — the values pinned in [main.bicepparam](main.bicepparam). The [deploy.sh](deploy.sh) validation battery then proves, both through the ARM API (`az aks nodepool show`) and through the Kubernetes API (`kubectl get nodes`), that the tags, labels, and taints actually landed on the pools and the nodes.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../README.md#run-against-localstack) for the full setup.
+
 ## Prerequisites
 
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) (`az`), logged in to an Azure subscription — or pointed at the LocalStack Azure emulator. The [Bicep CLI](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install) is installed automatically by `az` on first use.

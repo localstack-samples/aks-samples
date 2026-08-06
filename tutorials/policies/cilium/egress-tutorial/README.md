@@ -4,6 +4,8 @@ This tutorial demonstrates DNS-aware (FQDN) egress control with Cilium on an AKS
 
 It uses the Cilium [Star Wars demo](https://cilium.io/blog/2017/5/4/demo-may-the-force-be-with-you/): a `mediabot` pod (labels `org: empire`, `class: mediabot`) in the `starwars` namespace, which issues outbound `curl` calls to GitHub hostnames. Because Cilium enforces FQDN rules by observing DNS, each policy also allows DNS to kube-dns so the pod can still resolve names. The three policies are all named `fqdn`, so each `kubectl apply` overwrites the previous one.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../../README.md#run-against-localstack) for the full setup.
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).

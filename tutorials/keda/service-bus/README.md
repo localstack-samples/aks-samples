@@ -8,6 +8,8 @@ The KEDA operator authenticates to Azure with [Microsoft Entra Workload ID](http
 
 The producer and consumer applications themselves use the namespace connection string. That is a deliberate difference from the scaler: the applications speak AMQP, and the emulator's AMQP listener is plain TCP (its connection strings carry `UseDevelopmentEmulator=true`), a mode that has no Microsoft Entra variant. The scaler instead reads the queue's message count over the HTTPS management API, where workload identity works on both targets. The sibling [queue-storage](../queue-storage/) tutorial shows workload identity end to end, for the scaler and for the applications.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../README.md#run-against-localstack) for the full setup.
+
 ## Architecture
 
 The producer and the consumer are two workloads in the same Kubernetes namespace inside the AKS cluster. The producer fills the Service Bus queue, the consumer drains it, and the KEDA add-on in `kube-system` reads the queue's depth to decide how many consumer replicas should exist.

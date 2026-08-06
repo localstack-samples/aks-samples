@@ -44,8 +44,9 @@ provider "azurerm" {
 
 # azapi does not use azurerm's metadata_host discovery: when targeting the emulator
 # deploy.sh passes resource_manager_endpoint explicitly and instance discovery is
-# disabled (the emulator authority is not known to the Entra metadata service —
-# same reason azlocal sets core.instance_discovery=false for the az CLI).
+# disabled (the emulator authority is not known to the Entra metadata service, the
+# same reason `lstk az start-interception` sets core.instance_discovery=false for
+# the az CLI).
 provider "azapi" {
   subscription_id = var.subscription_id
   tenant_id       = var.tenant_id

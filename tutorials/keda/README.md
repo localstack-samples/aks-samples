@@ -12,6 +12,8 @@ These three tutorials each deploy a Python producer and a Python consumer as con
 
 Start with [service-bus](service-bus/) if you are new to KEDA: it is the scenario the Microsoft tutorial [Securely scale your applications using the KEDA add-on and workload identity](https://learn.microsoft.com/en-us/azure/aks/keda-workload-identity) describes. Read [queue-storage](queue-storage/) to see [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) used for the applications as well, with no data-plane secret anywhere. Read [event-hubs](event-hubs/) to see a checkpoint-based scaler, where the backlog is not a queue depth but the distance between the last enqueued event and what the consumer group has checkpointed.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
+
 ## One shared managed identity
 
 The `keda-operator` service account exists once, in `kube-system`, and the annotation that binds it to a managed identity therefore applies cluster-wide. So the three tutorials deliberately share a single user-assigned managed identity, `local-keda-uami-test`, declared in [00-variables.sh](00-variables.sh):

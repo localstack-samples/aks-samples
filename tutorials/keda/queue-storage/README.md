@@ -9,6 +9,8 @@ A producer Job sends 100 messages, the `ScaledObject` activates the consumer Dep
 It is the only one of the three KEDA tutorials that uses [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) end to end.
 The KEDA scaler **and** both applications authenticate with the same shared user-assigned managed identity, through their own federated identity credentials and their own service accounts, so there is **no connection string and no Kubernetes Secret anywhere in this tutorial**: the only credential is a projected service account token that Kubernetes rotates on its own, and the only Azure grant is one `Storage Queue Data Contributor` role assignment on the storage account.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../README.md#run-against-localstack) for the full setup.
+
 ## Architecture
 
 The producer and the consumer are two workloads in the same Kubernetes namespace inside the AKS cluster, both running as the federated `queue-app` service account. The producer fills the storage queue, the consumer drains it, and the KEDA add-on in `kube-system` reads the queue's depth to decide how many consumer replicas should exist. Every arrow that touches Azure is authenticated with workload identity.

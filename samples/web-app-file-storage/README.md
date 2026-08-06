@@ -15,6 +15,8 @@ Both scripts check that the Azure Files CSI driver and the CSI snapshot controll
 
 All commands below are run from this sample's `scripts/` folder.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
+
 ## Architecture
 
 The following diagram illustrates the architecture of the solution:

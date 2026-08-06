@@ -16,6 +16,8 @@ An L7 policy adds an HTTP filter so even empire ships may only call `POST /v1/re
 
 ![L3/L4/L7 policy](cilium_http_l3_l4_l7_gsg.png)
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../../README.md#run-against-localstack) for the full setup.
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).

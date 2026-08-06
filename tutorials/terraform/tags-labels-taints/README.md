@@ -10,6 +10,8 @@ The stack is a Terraform port of the Bicep version in `~/azure/aks/bicep/tags_la
 
 By default the user agent pool carries the `workload=batch` node label, the `dedicated=batch:NoSchedule` node taint, and the `costcenter=1234` scale-set tags, while the system agent pool carries the `team=platform` node label — the values pinned in [terraform.tfvars](terraform.tfvars). The [deploy.sh](deploy.sh) validation battery then proves, both through the ARM API (`az aks nodepool show`) and through the Kubernetes API (`kubectl get nodes`), that the tags, labels, and taints actually landed on the pools and the nodes.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../README.md#run-against-localstack) for the full setup.
+
 ## Prerequisites
 
 - [Terraform](https://developer.hashicorp.com/terraform/install) `>= 1.9.0`. The providers are pinned in [providers.tf](providers.tf): [azurerm](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs) `4.81.0` and [azapi](https://registry.terraform.io/providers/Azure/azapi/latest/docs) `2.10.0`.

@@ -9,6 +9,8 @@ Calico policy is expressed with two [Project Calico](https://docs.tigera.io/cali
 
 The demo runs in the `advanced-policy-demo` namespace with an `nginx` Deployment fronted by a ClusterIP Service and a busybox `access` pod used to probe connectivity.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../../README.md#run-against-localstack) for the full setup.
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the **Calico** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Calico).

@@ -6,6 +6,8 @@ On AKS the [Managed Gateway API installation](https://learn.microsoft.com/en-us/
 
 This tutorial enables the Managed Gateway API on an AKS cluster (or the [LocalStack for Azure](https://docs.localstack.cloud/azure/) emulator), installs [NGINX Gateway Fabric](https://docs.nginx.com/nginx-gateway-fabric/) as the Gateway API implementation, and exposes an [echo-server](https://github.com/Ealenn/Echo-Server) backend through a `Gateway` and an `HTTPRoute`. It then verifies, from the host, that a request for the route's hostname reaches the backend while a request for any other hostname does not, proving the gateway makes the routing decision. There is no cert-manager and no DNS: the hostname is local-only and reached with `kubectl port-forward` and an explicit `Host` header.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../README.md#run-against-localstack) for the full setup.
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [00-variables.sh](00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, location `ItalyNorth`) must match the cluster the script creates; edit them if you changed the cluster script's `prefix`, `suffix`, or `location`.

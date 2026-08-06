@@ -25,8 +25,47 @@ This makes it easy to compare how the same application is wired up against diffe
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) to manage the cluster.
 - [yq](https://github.com/mikefarah/yq), and (depending on the sample) `sqlcmd` or `psql` on the host machine.
 - An SSH key pair at `~/.ssh/id_rsa.pub` (used to provision the AKS node pools).
+- For local deployments only: the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/), which routes Azure CLI calls to the emulator with [`lstk az`](https://docs.localstack.cloud/azure/integrations/az/).
 
-> Running on LocalStack? Point the Azure CLI at the emulator endpoint (typically `http://localhost:4566`) and run the same scripts unchanged. The Azure resource model is emulated locally, so you can iterate on the full deployment without incurring cloud costs.
+## Run against LocalStack
+
+Every sample and tutorial in this repository runs unchanged against [LocalStack for Azure](https://docs.localstack.cloud/azure/), which emulates the Azure resource model locally, so you can iterate on a full deployment without incurring cloud costs.
+
+Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/), which routes Azure CLI calls to the emulator:
+
+```bash
+brew install localstack/tap/lstk
+```
+
+```bash
+npm install -g @localstack/lstk
+```
+
+Alternatively, download a pre-built binary from the [lstk releases page](https://github.com/localstack/lstk/releases).
+
+Start the emulator and point the Azure CLI at it:
+
+```bash
+# Set your LocalStack auth token
+export LOCALSTACK_AUTH_TOKEN=<your_auth_token>
+
+# Start the LocalStack Azure emulator
+IMAGE_NAME=localstack/localstack-azure localstack start -d
+localstack wait -t 60
+
+# Route all Azure CLI calls to the emulator
+lstk az start-interception
+```
+
+From here on, run the scripts exactly as documented: `az`, `kubectl`, `terraform` and Bicep all talk to the emulator. To send Azure CLI calls back to Azure:
+
+```bash
+lstk az stop-interception
+```
+
+For more information, see [Azure CLI interception](https://docs.localstack.cloud/azure/integrations/az/), the [lstk CLI documentation](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and the [lstk GitHub repository](https://github.com/localstack/lstk).
+
+> The first deployment against the emulator downloads and builds container images, which takes a few minutes. Later deployments reuse them and are much faster.
 
 ## Create an Azure Kubernetes Service (AKS) cluster
 
