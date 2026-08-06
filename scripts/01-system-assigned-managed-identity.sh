@@ -243,18 +243,21 @@ fi
 # re-running this script after deleting the resource group fails the create below with
 # "A vault with the same name already exists in deleted state". Recovering restores the vault with its
 # contents, which is what a re-run wants; purging would throw them away.
-deleted_key_vault=$(az keyvault list-deleted \
-  --query "[?name=='$key_vault_name'].name" \
+# The vault's own location, not $location: a soft-deleted vault stays in the region it was deleted in,
+# so recovering (or purging) it with a different region fails. They differ whenever the location at the
+# top of this script was changed between runs.
+deleted_key_vault_location=$(az keyvault list-deleted \
+  --query "[?name=='$key_vault_name'].properties.location | [0]" \
   --output tsv \
   --only-show-errors 2>/dev/null)
 
-if [[ -n $deleted_key_vault ]]; then
-  echo "[$key_vault_name] key vault exists in a soft-deleted state in the subscription [$subscription_name]"
+if [[ -n $deleted_key_vault_location ]]; then
+  echo "[$key_vault_name] key vault exists in a soft-deleted state in [$deleted_key_vault_location]"
   echo "Recovering the [$key_vault_name] key vault..."
 
   az keyvault recover \
     --name "$key_vault_name" \
-    --location "$location" \
+    --location "$deleted_key_vault_location" \
     --only-show-errors 1>/dev/null
 
   if [[ $? == 0 ]]; then
@@ -262,7 +265,7 @@ if [[ -n $deleted_key_vault ]]; then
   else
     echo "Failed to recover the soft-deleted [$key_vault_name] key vault"
     echo "Discard it and re-run this script, or recover it by hand:"
-    echo "  az keyvault purge --name $key_vault_name --location $location"
+    echo "  az keyvault purge --name $key_vault_name --location $deleted_key_vault_location"
     exit 1
   fi
 fi
