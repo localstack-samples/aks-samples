@@ -25,6 +25,7 @@ By default the user agent pool carries the `workload=batch` node label, the `ded
 The root [main.tf](main.tf) composes seven local Terraform modules around a single resource group, then adds the cross-module role assignments and the Managed Gateway API installation that no single module can own:
 
 ```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
 graph TD
   RG[azurerm_resource_group] --> LA[module log_analytics]
   RG --> VNET[module virtual_network]

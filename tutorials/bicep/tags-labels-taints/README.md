@@ -24,6 +24,7 @@ By default the user agent pool carries the `workload=batch` node label, the `ded
 [main.bicep](main.bicep) is a resource-group-scoped template that composes nine local Bicep modules (`deploy.sh` creates the `local-rg` resource group first):
 
 ```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
 graph TD
   LA[module logAnalytics] --> ACR[module containerRegistry]
   LA --> KV[module keyVault]

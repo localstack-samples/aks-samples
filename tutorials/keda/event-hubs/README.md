@@ -13,6 +13,7 @@ This tutorial creates an Event Hubs namespace with one event hub, a dedicated co
 The producer and the consumer are two workloads in the same Kubernetes namespace inside the AKS cluster. The producer sends events to the event hub, the consumer reads them and records its progress as checkpoints in blob storage, and the KEDA add-on in `kube-system` compares the two to work out the lag that drives the scaling.
 
 ```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
 flowchart LR
     subgraph aks["Azure Kubernetes Service cluster"]
         subgraph kubesystem["kube-system: KEDA add-on"]
