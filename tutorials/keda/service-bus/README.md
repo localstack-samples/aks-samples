@@ -15,6 +15,7 @@ The producer and consumer applications themselves use the namespace connection s
 The producer and the consumer are two workloads in the same Kubernetes namespace inside the AKS cluster. The producer fills the Service Bus queue, the consumer drains it, and the KEDA add-on in `kube-system` reads the queue's depth to decide how many consumer replicas should exist.
 
 ```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
 flowchart LR
     subgraph aks["Azure Kubernetes Service cluster"]
         subgraph kubesystem["kube-system: KEDA add-on"]

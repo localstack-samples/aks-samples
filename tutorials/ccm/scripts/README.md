@@ -10,6 +10,43 @@ Because the emulated load balancer has no real dataplane, the `EXTERNAL-IP` is a
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+The cloud controller manager turns Kubernetes `Service` objects into Azure load-balancer resources in the node resource group, and writes the assigned address back onto the Service:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    subgraph aks["AKS cluster"]
+        subgraph kubesystem["kube-system"]
+            ccm["cloud-controller-manager"]
+            cnm["cloud-node-manager"]
+        end
+        subgraph appns["test namespace"]
+            svcpub["Service<br/>type LoadBalancer"]
+            svcint["Service<br/>internal annotation"]
+            backend["backend Deployment"]
+        end
+    end
+
+    subgraph noderg["node resource group MC_*"]
+        lb["kubernetes<br/>load balancer"]
+        lbint["kubernetes-internal<br/>load balancer"]
+        pip["public IP address"]
+        nsg["network security group"]
+    end
+
+    svcpub -.->|"watched by"| ccm
+    svcint -.->|"watched by"| ccm
+    ccm -->|"frontend, rule, backend pool"| lb
+    ccm -->|"private frontend"| lbint
+    ccm -->|"allocates"| pip
+    ccm -->|"Allow rule per loadBalancerSourceRanges"| nsg
+    ccm -->|"writes EXTERNAL-IP back"| svcpub
+    cnm -->|"labels and addresses nodes"| aks
+    lb -.->|"backend pool targets"| backend
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created by [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh). The scripts do not create the cluster; they source `./00-variables.sh`, whose values must match it (`local-aks-test` in resource group `local-rg`, location `ItalyNorth`).

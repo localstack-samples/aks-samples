@@ -18,6 +18,41 @@ This tutorial enables the Managed Gateway API on an AKS cluster (or the [LocalSt
 
 The cluster-creation scripts already enable the Managed Gateway API at create time, so `01-enable-gateway-api.sh` is idempotent: on such a cluster it detects the installation and leaves it in place. It still runs cleanly on a cluster created without it, enabling it through the live `az aks update` path.
 
+## Architecture
+
+The Managed Gateway API add-on installs only the CRDs; NGINX Gateway Fabric is the implementation that claims the `GatewayClass` and serves the traffic:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    client(["curl -H 'Host: echo.local'"])
+
+    subgraph aks["AKS cluster"]
+        crds["gateway.networking.k8s.io CRDs<br/>installed by the add-on"]
+        gwclass["GatewayClass nginx"]
+
+        subgraph ngfns["namespace nginx-gateway"]
+            controller["NGINX Gateway Fabric<br/>controller"]
+            dataplane["per-Gateway NGINX<br/>data-plane Service and pods"]
+        end
+
+        subgraph testns["namespace gateway-api-test"]
+            gw["Gateway<br/>HTTP listener for echo.local"]
+            route["HTTPRoute<br/>every path of echo.local"]
+            svc["echo-server<br/>ClusterIP Service"]
+            deploy["echo-server<br/>Deployment"]
+        end
+    end
+
+    crds -.->|"define"| gw
+    gwclass -.->|"claimed by"| controller
+    gw -.->|"provisions"| dataplane
+    route -.->|"attached to"| gw
+    client -->|"kubectl port-forward"| dataplane
+    dataplane -->|"routes per HTTPRoute"| svc
+    svc --> deploy
+```
+
 ## How it works
 
 Run the numbered scripts in order. Each one sources [00-variables.sh](00-variables.sh) and is idempotent, so it can be re-run safely.
