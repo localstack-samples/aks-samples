@@ -94,18 +94,7 @@ The [scripts/](scripts/) folder also contains optional add-on installers you can
 
 ## Samples
 
-Every sample deploys the same *Vacation Planner* web app, a small Python [Flask](https://flask.palletsprojects.com/) single-page application, and differs only in the Azure data service that persists the activity data behind it:
-
-- [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview?view=azuresql)
-- [Azure Database for MySQL flexible server](https://learn.microsoft.com/en-us/azure/mysql/flexible-server/overview)
-- [Azure Database for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/overview)
-- An in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)
-- [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/overview)
-- [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/overview)
-- [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction)
-- [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction), mounted into the pods over SMB or NFS by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi)
-
-Keeping the application identical makes the comparison the point: what changes from one sample to the next is the data service, its provisioning, and how the app authenticates to it.
+Every sample deploys the same *Vacation Planner* web app, a small Python [Flask](https://flask.palletsprojects.com/) single-page application, and differs only in the Azure data service that persists the activity data behind it, listed in the table below. Keeping the application identical makes the comparison the point: what changes from one sample to the next is the data service, its provisioning, and how the app authenticates to it.
 
 ![Vacation Planner](images/vacation-planner.png)
 
