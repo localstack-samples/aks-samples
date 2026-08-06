@@ -168,7 +168,7 @@ if [[ $install_extensions_and_features == 1 ]]; then
     echo "[aks-preview] extension successfully installed or upgraded"
   else
     echo "Failed to install or upgrade [aks-preview] extension"
-    exit
+    exit 1
   fi
 
   # Registering AKS features
@@ -232,7 +232,7 @@ if [[ $? != 0 ]]; then
     echo "[$resource_group_name] resource group successfully created in the [$subscription_name] subscription"
   else
     echo "Failed to create [$resource_group_name] resource group in the [$subscription_name] subscription"
-    exit
+    exit 1
   fi
 else
   echo "[$resource_group_name] resource group already exists in the [$subscription_name] subscription"
@@ -277,7 +277,7 @@ if [[ -n $key_vault_id ]]; then
 	echo "Successfully retrieved the id for the [$key_vault_name] key vault"
 else
 	echo "Failed to retrieve the id for the [$key_vault_name] key vault"
-	exit
+	exit 1
 fi
 
 # Check if log analytics workspace exists and retrieve its resource id
@@ -306,7 +306,7 @@ if [[ $? != 0 ]]; then
     echo "[$log_analytics_name] log analytics workspace successfully created in the [$resource_group_name] resource group"
   else
     echo "Failed to create [$log_analytics_name] log analytics workspace in the [$resource_group_name] resource group"
-    exit
+    exit 1
   fi
 else
   echo "Successfully retrieved the resource id for the [$log_analytics_name] log analytics workspace"
@@ -324,7 +324,7 @@ if [[ -n $workspace_resource_id ]]; then
   echo "Successfully retrieved the id for the [$log_analytics_name] log analytics workspace"
 else
   echo "Failed to retrieve the id for the [$log_analytics_name] log analytics workspace"
-  exit
+  exit 1
 fi
 
 # Check if the client virtual network already exists
@@ -352,7 +352,7 @@ if [[ $? != 0 ]]; then
     echo "[$virtual_network_name] virtual network successfully created in the [$resource_group_name] resource group"
   else
     echo "Failed to create [$virtual_network_name] virtual network in the [$resource_group_name] resource group"
-    exit
+    exit 1
   fi
 else
   echo "[$virtual_network_name] virtual network already exists in the [$resource_group_name] resource group"
@@ -382,7 +382,7 @@ if [[ $? != 0 ]]; then
     echo "[$user_subnet_name] user subnet successfully created in the [$virtual_network_name] virtual network"
   else
     echo "Failed to create [$user_subnet_name] user subnet in the [$virtual_network_name] virtual network"
-    exit
+    exit 1
   fi
 else
   echo "[$user_subnet_name] user subnet already exists in the [$virtual_network_name] virtual network"
@@ -412,11 +412,49 @@ if [[ $? != 0 ]]; then
     echo "[$bastion_subnet_name] bastion subnet successfully created in the [$virtual_network_name] virtual network"
   else
     echo "Failed to create [$bastion_subnet_name] bastion subnet in the [$virtual_network_name] virtual network"
-    exit
+    exit 1
   fi
 else
   echo "[$bastion_subnet_name] bastion subnet already exists in the [$virtual_network_name] virtual network"
 fi
+
+# Enable the Microsoft.Storage service endpoint on the node subnets.
+# An Azure Files NFS share can only be reached from a virtual network, so the Azure Files CSI
+# driver needs this endpoint to mount an NFS volume on a node. SMB shares do not require it.
+for node_subnet_name in $system_subnet_name $user_subnet_name; do
+  echo "Checking if the [Microsoft.Storage] service endpoint is enabled on the [$node_subnet_name] subnet..."
+  current_service_endpoints=$(az network vnet subnet show \
+    --name $node_subnet_name \
+    --vnet-name $virtual_network_name \
+    --resource-group $resource_group_name \
+    --query "serviceEndpoints[].service" \
+    --output tsv \
+    --only-show-errors 2>/dev/null)
+
+  if echo "$current_service_endpoints" | grep -qx "Microsoft.Storage"; then
+    echo "The [Microsoft.Storage] service endpoint is already enabled on the [$node_subnet_name] subnet"
+    continue
+  fi
+
+  echo "Enabling the [Microsoft.Storage] service endpoint on the [$node_subnet_name] subnet..."
+
+  # --service-endpoints replaces the entire list, so the endpoints already on the subnet are
+  # passed along with the new one. $current_service_endpoints is deliberately left unquoted:
+  # it must word-split into one argument per endpoint, and expand to nothing when empty.
+  az network vnet subnet update \
+    --name $node_subnet_name \
+    --vnet-name $virtual_network_name \
+    --resource-group $resource_group_name \
+    --service-endpoints $current_service_endpoints Microsoft.Storage \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? == 0 ]]; then
+    echo "The [Microsoft.Storage] service endpoint was successfully enabled on the [$node_subnet_name] subnet"
+  else
+    echo "Failed to enable the [Microsoft.Storage] service endpoint on the [$node_subnet_name] subnet"
+    exit 1
+  fi
+done
 
 # Retrieve the virtual network resource ID
 virtual_network_id=$(az network vnet show \
@@ -430,7 +468,7 @@ if [[ -n $virtual_network_id ]]; then
   echo "Successfully retrieved the resource ID for the [$virtual_network_name] virtual network"
 else
   echo "Failed to retrieve the resource ID for the [$virtual_network_name] virtual network"
-  exit
+  exit 1
 fi
 
 # Retrieve the system subnet id
@@ -446,7 +484,7 @@ if [[ -n $system_subnet_id ]]; then
   echo "Successfully retrieved the id for the [$system_subnet_name] subnet"
 else
   echo "Failed to retrieve the id for the [$system_subnet_name] subnet"
-  exit
+  exit 1
 fi
 
 # Retrieve the user subnet id
@@ -462,7 +500,7 @@ if [[ -n $user_subnet_id ]]; then
   echo "Successfully retrieved the id for the [$user_subnet_name] subnet"
 else
   echo "Failed to retrieve the id for the [$user_subnet_name] subnet"
-  exit
+  exit 1
 fi
 
 # Check if the Azure Container Registry already exists
@@ -488,7 +526,7 @@ if [[ $? != 0 ]]; then
     echo "[$acr_name] container registry successfully created in the [$resource_group_name] resource group"
   else
     echo "Failed to create [$acr_name] container registry in the [$resource_group_name] resource group"
-    exit
+    exit 1
   fi
 else
   echo "[$acr_name] container registry already exists in the [$resource_group_name] resource group"
@@ -558,10 +596,52 @@ if [[ $? != 0 ]]; then
     echo "[$aks_cluster_name] aks cluster successfully created in the [$resource_group_name] resource group"
   else
     echo "Failed to create [$aks_cluster_name] aks cluster in the [$resource_group_name] resource group"
-    exit
+    exit 1
   fi
 else
   echo "[$aks_cluster_name] aks cluster already exists in the [$resource_group_name] resource group"
+fi
+
+# Make sure the Azure Files CSI driver and the CSI snapshot controller are enabled on the cluster.
+# AKS enables the storage drivers by default, which is why `az aks create` exposes only --disable-*
+# flags for them and --enable-file-driver exists solely on `az aks update`. Checking them here
+# documents that the samples mounting an Azure file share (samples/web-app-file-storage) depend on
+# the driver, and repairs a cluster where it was turned off. The update runs only when needed,
+# because `az aks update` is a long-running operation.
+echo "Checking if the Azure Files CSI driver is enabled on the [$aks_cluster_name] AKS cluster..."
+file_csi_driver_enabled=$(az aks show \
+  --name $aks_cluster_name \
+  --resource-group $resource_group_name \
+  --query storageProfile.fileCsiDriver.enabled \
+  --output tsv \
+  --only-show-errors 2>/dev/null)
+
+snapshot_controller_enabled=$(az aks show \
+  --name $aks_cluster_name \
+  --resource-group $resource_group_name \
+  --query storageProfile.snapshotController.enabled \
+  --output tsv \
+  --only-show-errors 2>/dev/null)
+
+if [[ "$file_csi_driver_enabled" == 'true' && "$snapshot_controller_enabled" == 'true' ]]; then
+  echo "The Azure Files CSI driver and the CSI snapshot controller are already enabled on the [$aks_cluster_name] AKS cluster"
+else
+  echo "Enabling the Azure Files CSI driver and the CSI snapshot controller on the [$aks_cluster_name] AKS cluster..."
+
+  az aks update \
+    --name $aks_cluster_name \
+    --resource-group $resource_group_name \
+    --enable-file-driver \
+    --enable-snapshot-controller \
+    --yes \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? == 0 ]]; then
+    echo "The Azure Files CSI driver and the CSI snapshot controller were successfully enabled on the [$aks_cluster_name] AKS cluster"
+  else
+    echo "Failed to enable the Azure Files CSI driver on the [$aks_cluster_name] AKS cluster"
+    exit 1
+  fi
 fi
 
 # Retrieve the cluster identity principal ID
@@ -577,7 +657,7 @@ if [[ -n $cluster_identity_principal_id ]]; then
   echo "Successfully retrieved the principalId for the [$aks_cluster_name] AKS cluster identity"
 else
   echo "Failed to retrieve the principalId for the [$aks_cluster_name] AKS cluster identity"
-  exit
+  exit 1
 fi
 
 # Assign the Network Contributor role to the cluster identity on the virtual network
@@ -677,7 +757,7 @@ if [[ -n $kv_secret_provider_managed_identity_object_id ]]; then
   echo "Successfully retrieved the objectId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
 else
   echo "Failed to retrieve the objectId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
-  exit
+  exit 1
 fi
 
 # Get the clientId of the Azure Key Vault Secrets Provider identity
@@ -691,7 +771,7 @@ if [[ -n $kv_secret_provider_managed_identity_client_id ]]; then
   echo "Successfully retrieved the clientId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
 else
   echo "Failed to retrieve the clientId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
-  exit
+  exit 1
 fi
 
 # Get the resourceId of the Azure Key Vault Secrets Provider identity
@@ -705,7 +785,7 @@ if [[ -n $kv_secret_provider_managed_identity_resource_id ]]; then
   echo "Successfully retrieved the resourceId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
 else
   echo "Failed to retrieve the resourceId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
-  exit
+  exit 1
 fi
 
 # Get the name of the Azure Key Vault Secrets Provider identity from the resourceId
@@ -769,5 +849,19 @@ if [[ $? == 0 ]]; then
   echo "Credentials for the [$aks_cluster_name] cluster successfully retrieved"
 else
   echo "Failed to retrieve the credentials for the [$aks_cluster_name] cluster"
-  exit
+  exit 1
 fi
+
+# Print the storage drivers enabled on the cluster, followed by the storage classes they provide.
+# The four azurefile* classes come from the Azure Files CSI driver and are what the
+# samples/web-app-file-storage sample provisions its volumes from.
+echo "Storage profile of the [$aks_cluster_name] AKS cluster:"
+az aks show \
+  --name $aks_cluster_name \
+  --resource-group $resource_group_name \
+  --query storageProfile \
+  --output yaml \
+  --only-show-errors
+
+echo "Storage classes of the [$aks_cluster_name] AKS cluster:"
+kubectl get storageclass

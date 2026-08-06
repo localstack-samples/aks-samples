@@ -6,6 +6,8 @@
 
 This tutorial creates an Event Hubs namespace with one event hub, a dedicated consumer group, and a storage account whose blob container holds that consumer group's checkpoints. It then deploys a Python consumer that starts at **zero replicas**, and a producer that runs as a Kubernetes `Job` and sends a burst of events. KEDA observes the lag, activates the consumer, scales it out while it catches up, and returns it to zero when it has. Everything runs unchanged against a real AKS cluster and against the [LocalStack for Azure](https://docs.localstack.cloud/azure/) emulator.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../README.md#run-against-localstack) for the full setup.
+
 ## Architecture
 
 The producer and the consumer are two workloads in the same Kubernetes namespace inside the AKS cluster. The producer sends events to the event hub, the consumer reads them and records its progress as checkpoints in blob storage, and the KEDA add-on in `kube-system` compares the two to work out the lag that drives the scaling.

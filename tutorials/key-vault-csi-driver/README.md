@@ -32,6 +32,8 @@ If a secret in an external secrets store is updated after the initial deployment
 - Still requires accessing managed services such as Azure Service Bus or Azure Storage using their own connection strings from Azure Key Vault.
 - Cannot utilize Microsoft Entra ID integrated security and managed identities for accessing managed services.
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
+
 ## Identity Access Modes
 
 The Azure Key Vault provider for Secrets Store CSI Driver supports more than one way to authenticate to Azure Key Vault. This folder contains two samples, each demonstrating a different identity access mode. Both samples mount the same `username` and `password` secrets into a demo nginx pod, but they differ in how the CSI driver obtains the credentials used to read the secrets from Key Vault.

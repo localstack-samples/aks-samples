@@ -5,11 +5,13 @@ This repository contains a set of end-to-end samples that show how to deploy an 
 Every sample deploys the same Vacation Planner web app, a small Python [Flask](https://flask.palletsprojects.com/) single-page application, and only differs in the Azure data service used to persist the activity data behind it: 
 
 - [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview?view=azuresql)
-- [Azure Database DB for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/overview)
+- [Azure Database for MySQL flexible server](https://learn.microsoft.com/en-us/azure/mysql/flexible-server/overview)
+- [Azure Database for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/overview)
 - An in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)
 - [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/overview)
 - [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/overview)
 - [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction)
+- [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction), mounted into the pods over SMB or NFS by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi)
 
 This makes it easy to compare how the same application is wired up against different backing stores.
 
@@ -23,8 +25,47 @@ This makes it easy to compare how the same application is wired up against diffe
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) to manage the cluster.
 - [yq](https://github.com/mikefarah/yq), and (depending on the sample) `sqlcmd` or `psql` on the host machine.
 - An SSH key pair at `~/.ssh/id_rsa.pub` (used to provision the AKS node pools).
+- For local deployments only: the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/), which routes Azure CLI calls to the emulator with [`lstk az`](https://docs.localstack.cloud/azure/integrations/az/).
 
-> Running on LocalStack? Point the Azure CLI at the emulator endpoint (typically `http://localhost:4566`) and run the same scripts unchanged. The Azure resource model is emulated locally, so you can iterate on the full deployment without incurring cloud costs.
+## Run against LocalStack
+
+Every sample and tutorial in this repository runs unchanged against [LocalStack for Azure](https://docs.localstack.cloud/azure/), which emulates the Azure resource model locally, so you can iterate on a full deployment without incurring cloud costs.
+
+Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/), which routes Azure CLI calls to the emulator:
+
+```bash
+brew install localstack/tap/lstk
+```
+
+```bash
+npm install -g @localstack/lstk
+```
+
+Alternatively, download a pre-built binary from the [lstk releases page](https://github.com/localstack/lstk/releases).
+
+Start the emulator and point the Azure CLI at it:
+
+```bash
+# Set your LocalStack auth token
+export LOCALSTACK_AUTH_TOKEN=<your_auth_token>
+
+# Start the LocalStack Azure emulator
+IMAGE_NAME=localstack/localstack-azure localstack start -d
+localstack wait -t 60
+
+# Route all Azure CLI calls to the emulator
+lstk az start-interception
+```
+
+From here on, run the scripts exactly as documented: `az`, `kubectl`, `terraform` and Bicep all talk to the emulator. To send Azure CLI calls back to Azure:
+
+```bash
+lstk az stop-interception
+```
+
+For more information, see [Azure CLI interception](https://docs.localstack.cloud/azure/integrations/az/), the [lstk CLI documentation](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and the [lstk GitHub repository](https://github.com/localstack/lstk).
+
+> The first deployment against the emulator downloads and builds container images, which takes a few minutes. Later deployments reuse them and are much faster.
 
 ## Create an Azure Kubernetes Service (AKS) cluster
 
@@ -75,7 +116,8 @@ All samples implement the same Vacation Planner web app. They only vary the unde
 | [web-app-in-cluster-postgresql](samples/web-app-in-cluster-postgresql/) | Stores activities in an in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) (a primary with two streaming-replica standbys), instead of a managed Azure data service. |
 | [web-app-cosmosdb-mongodb-api](samples/web-app-cosmosdb-mongodb-api/) | Stores activities in a collection of an [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/introduction) account. |
 | [web-app-cosmosdb-nosql-api](samples/web-app-cosmosdb-nosql-api/) | Stores activities in a container of an [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/) account. |
-| [web-app-storage-account](samples/web-app-storage-account/) | Stores activities in an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) container, using a connection string. |
+| [web-app-blob-storage](samples/web-app-blob-storage/) | Stores activities in an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) container, using a connection string. |
+| [web-app-file-storage](samples/web-app-file-storage/) | Stores activities as text files on an [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction) share mounted into the pods by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi), over either SMB or NFS, with either a pre-created share or one provisioned on demand. The only sample whose app uses no Azure SDK at all. |
 | [web-app-managed-identity](samples/web-app-managed-identity/) | Stores activities in an Azure Blob Storage container, authenticating with [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) (federated credential plus workload identity) instead of a secret, and optionally exposes the app through the Gateway API with a managed TLS certificate. |
 
 Each sample folder follows the same layout:

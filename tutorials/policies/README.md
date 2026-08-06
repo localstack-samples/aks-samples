@@ -10,6 +10,8 @@ These tutorials each build a policy scenario step by step and verify, from insid
 | [cilium/egress-tutorial](cilium/egress-tutorial) | Cilium | DNS-aware (FQDN) egress control: an exact hostname, a wildcard pattern, and a pattern locked to a single port. |
 | [cilium/ingress-tutorial](cilium/ingress-tutorial) | Cilium | Identity-aware ingress, first at L3/L4 (which workloads may connect) and then at L7 (which HTTP calls they may make). |
 
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the policy engine that matches the tutorial you want to run (Calico for the Calico tutorial, Cilium for the two Cilium tutorials).

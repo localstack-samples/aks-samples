@@ -5,7 +5,8 @@ metadata:
   namespace: vacation-planner-blob
 spec:
   acme:
-    email: paolo.salvatori@gmail.com
+    # Registration address for the Let's Encrypt account: expiry notices go here
+    email: paolo.salvatori@localstack.cloud
     privateKeySecretRef:
       name: vacation-planner-blob-issuer
     server: https://acme-v02.api.letsencrypt.org/directory

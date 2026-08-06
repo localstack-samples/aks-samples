@@ -1,0 +1,26 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: vacation-planner-file-nfs
+  labels:
+    app: vacation-planner-file
+# The Azure Files CSI driver installed on every AKS cluster
+provisioner: file.csi.azure.com
+parameters:
+  # None of the four built-in azurefile* storage classes sets this, which is the only reason this
+  # sample ships a storage class of its own: without it the driver provisions an SMB share.
+  protocol: nfs
+  # NFS Azure file shares are only available on SSD (premium) file shares
+  # (https://learn.microsoft.com/en-us/azure/storage/files/files-nfs-protocol). Premium accounts also
+  # accept PremiumV2_LRS, the provisioned v2 billing model.
+  skuName: Premium_LRS
+mountOptions:
+  # Same options as the static NFS volume in persistentvolume-nfs.yml. Mount options belong to the
+  # storage class when the volume is provisioned dynamically, and to the volume when it is static.
+  - nconnect=4
+  - noresvport
+  - actimeo=30
+# Delete, so removing the claim also removes the file share and the account the driver created for it
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
