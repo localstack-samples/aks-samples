@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vacation-planner-file-config
+  namespace: vacation-planner-file
+  labels:
+    app: vacation-planner-file
+data:
+  # Directory where the Azure file share is mounted in the pods. It is the only thing the app knows
+  # about its storage: the app reads and writes plain files and uses no Azure SDK at all.
+  ACTIVITIES_DIR: "/data"

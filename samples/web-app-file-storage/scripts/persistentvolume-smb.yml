@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vacation-planner-file-pv
+  annotations:
+    pv.kubernetes.io/provisioned-by: file.csi.azure.com
+  labels:
+    app: vacation-planner-file
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    # Every replica of the deployment mounts the same share at the same time
+    - ReadWriteMany
+  # Retain, so deleting the claim leaves the file share and its activities untouched
+  persistentVolumeReclaimPolicy: Retain
+  # No storage class on purpose: the claim in persistentvolumeclaim.yml sets storageClassName to the
+  # empty string and binds to this volume by name, so no provisioner ever looks at it.
+  mountOptions:
+    # Permissions recommended by the Azure Files CSI driver documentation for a static SMB volume
+    # (https://learn.microsoft.com/en-us/azure/aks/azure-csi-files-storage-provision). The app runs as
+    # uid 1000, so the volume is mounted with that identity: the CIFS client synthesizes the ownership
+    # of every file and directory from these options, which is why the SMB variant needs no chown.
+    - dir_mode=0755
+    - file_mode=0755
+    - uid=1000
+    - gid=1000
+    - mfsymlinks
+    - cache=strict
+    - nosharesock
+    # Reduce the latency of the metadata-heavy directory listing the app does on every page load.
+    # It also caps how long a file created by one replica can stay invisible to the others.
+    - actimeo=30
+  csi:
+    driver: file.csi.azure.com
+    # Must be unique per share in the cluster: {resource group}#{storage account}#{file share}
+    volumeHandle: "resource-group#storage-account#file-share"
+    volumeAttributes:
+      resourceGroup: resource-group
+      storageAccount: storage-account
+      shareName: file-share
+    # The driver mounts an SMB share with the storage account key, which it reads from this secret
+    nodeStageSecretRef:
+      name: vacation-planner-file-storage
+      namespace: vacation-planner-file

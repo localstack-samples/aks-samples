@@ -5,11 +5,13 @@ This repository contains a set of end-to-end samples that show how to deploy an 
 Every sample deploys the same Vacation Planner web app, a small Python [Flask](https://flask.palletsprojects.com/) single-page application, and only differs in the Azure data service used to persist the activity data behind it: 
 
 - [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview?view=azuresql)
-- [Azure Database DB for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/overview)
+- [Azure Database for MySQL flexible server](https://learn.microsoft.com/en-us/azure/mysql/flexible-server/overview)
+- [Azure Database for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/overview)
 - An in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)
 - [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/overview)
 - [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/overview)
 - [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction)
+- [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction), mounted into the pods over SMB or NFS by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi)
 
 This makes it easy to compare how the same application is wired up against different backing stores.
 
@@ -75,7 +77,8 @@ All samples implement the same Vacation Planner web app. They only vary the unde
 | [web-app-in-cluster-postgresql](samples/web-app-in-cluster-postgresql/) | Stores activities in an in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) (a primary with two streaming-replica standbys), instead of a managed Azure data service. |
 | [web-app-cosmosdb-mongodb-api](samples/web-app-cosmosdb-mongodb-api/) | Stores activities in a collection of an [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/introduction) account. |
 | [web-app-cosmosdb-nosql-api](samples/web-app-cosmosdb-nosql-api/) | Stores activities in a container of an [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/) account. |
-| [web-app-storage-account](samples/web-app-storage-account/) | Stores activities in an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) container, using a connection string. |
+| [web-app-blob-storage](samples/web-app-blob-storage/) | Stores activities in an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) container, using a connection string. |
+| [web-app-file-storage](samples/web-app-file-storage/) | Stores activities as text files on an [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction) share mounted into the pods by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi), over either SMB or NFS, with either a pre-created share or one provisioned on demand. The only sample whose app uses no Azure SDK at all. |
 | [web-app-managed-identity](samples/web-app-managed-identity/) | Stores activities in an Azure Blob Storage container, authenticating with [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) (federated credential plus workload identity) instead of a secret, and optionally exposes the app through the Gateway API with a managed TLS certificate. |
 
 Each sample folder follows the same layout:
