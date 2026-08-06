@@ -1,21 +1,11 @@
 # Azure Kubernetes Service (AKS) Samples
 
-This repository contains a set of end-to-end samples that show how to deploy an [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/what-is-aks) cluster and run a real workload on it, either against Azure in the cloud or locally on the [LocalStack for Azure](https://docs.localstack.cloud/azure/) emulator.
+This repository shows how to deploy an [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/what-is-aks) cluster and run real workloads on it, either against Azure in the cloud or locally on the [LocalStack for Azure](https://docs.localstack.cloud/azure/) emulator. Everything here runs unchanged against both.
 
-Every sample deploys the same Vacation Planner web app, a small Python [Flask](https://flask.palletsprojects.com/) single-page application, and only differs in the Azure data service used to persist the activity data behind it: 
+It contains two kinds of content:
 
-- [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview?view=azuresql)
-- [Azure Database for MySQL flexible server](https://learn.microsoft.com/en-us/azure/mysql/flexible-server/overview)
-- [Azure Database for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/overview)
-- An in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)
-- [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/overview)
-- [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/overview)
-- [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction)
-- [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction), mounted into the pods over SMB or NFS by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi)
-
-This makes it easy to compare how the same application is wired up against different backing stores.
-
-![Vacation Planner](images/vacation-planner.png)
+- **[Samples](#samples)**: end-to-end deployments of the same web app, each persisting its data in a different Azure data service, so you can compare how one application is wired up against different backing stores.
+- **[Tutorials](#tutorials)**: standalone walkthroughs of individual AKS capabilities, from network policies and the cloud controller manager to KEDA autoscaling, the Gateway API, the Key Vault CSI driver, and Terraform and Bicep deployments.
 
 ## Prerequisites
 
@@ -104,9 +94,22 @@ The [scripts/](scripts/) folder also contains optional add-on installers you can
 
 ## Samples
 
-To run any sample you must first create the AKS cluster with one of the two scripts above. Then pick a sample from the [samples/](samples/) folder and run the numbered scripts in its `samples/<sample>/scripts` folder in order. The web app source code for each sample lives in `samples/<sample>/src`.
+Every sample deploys the same *Vacation Planner* web app, a small Python [Flask](https://flask.palletsprojects.com/) single-page application, and differs only in the Azure data service that persists the activity data behind it:
 
-All samples implement the same Vacation Planner web app. They only vary the underlying repository where the activity data is actually stored.
+- [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview?view=azuresql)
+- [Azure Database for MySQL flexible server](https://learn.microsoft.com/en-us/azure/mysql/flexible-server/overview)
+- [Azure Database for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/overview)
+- An in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)
+- [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/overview)
+- [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/overview)
+- [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction)
+- [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction), mounted into the pods over SMB or NFS by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi)
+
+Keeping the application identical makes the comparison the point: what changes from one sample to the next is the data service, its provisioning, and how the app authenticates to it.
+
+![Vacation Planner](images/vacation-planner.png)
+
+To run any sample you must first create the AKS cluster with one of the two scripts above. Then pick a sample from the [samples/](samples/) folder and run the numbered scripts in its `samples/<sample>/scripts` folder in order. The web app source code for each sample lives in `samples/<sample>/src`.
 
 | Sample | Description |
 | ------ | ----------- |
