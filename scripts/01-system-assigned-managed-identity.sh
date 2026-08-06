@@ -168,7 +168,7 @@ if [[ $install_extensions_and_features == 1 ]]; then
     echo "[aks-preview] extension successfully installed or upgraded"
   else
     echo "Failed to install or upgrade [aks-preview] extension"
-    exit
+    exit 1
   fi
 
   # Registering AKS features
@@ -232,7 +232,7 @@ if [[ $? != 0 ]]; then
     echo "[$resource_group_name] resource group successfully created in the [$subscription_name] subscription"
   else
     echo "Failed to create [$resource_group_name] resource group in the [$subscription_name] subscription"
-    exit
+    exit 1
   fi
 else
   echo "[$resource_group_name] resource group already exists in the [$subscription_name] subscription"
@@ -277,7 +277,7 @@ if [[ -n $key_vault_id ]]; then
 	echo "Successfully retrieved the id for the [$key_vault_name] key vault"
 else
 	echo "Failed to retrieve the id for the [$key_vault_name] key vault"
-	exit
+	exit 1
 fi
 
 # Check if log analytics workspace exists and retrieve its resource id
@@ -306,7 +306,7 @@ if [[ $? != 0 ]]; then
     echo "[$log_analytics_name] log analytics workspace successfully created in the [$resource_group_name] resource group"
   else
     echo "Failed to create [$log_analytics_name] log analytics workspace in the [$resource_group_name] resource group"
-    exit
+    exit 1
   fi
 else
   echo "Successfully retrieved the resource id for the [$log_analytics_name] log analytics workspace"
@@ -324,7 +324,7 @@ if [[ -n $workspace_resource_id ]]; then
   echo "Successfully retrieved the id for the [$log_analytics_name] log analytics workspace"
 else
   echo "Failed to retrieve the id for the [$log_analytics_name] log analytics workspace"
-  exit
+  exit 1
 fi
 
 # Check if the client virtual network already exists
@@ -352,7 +352,7 @@ if [[ $? != 0 ]]; then
     echo "[$virtual_network_name] virtual network successfully created in the [$resource_group_name] resource group"
   else
     echo "Failed to create [$virtual_network_name] virtual network in the [$resource_group_name] resource group"
-    exit
+    exit 1
   fi
 else
   echo "[$virtual_network_name] virtual network already exists in the [$resource_group_name] resource group"
@@ -382,7 +382,7 @@ if [[ $? != 0 ]]; then
     echo "[$user_subnet_name] user subnet successfully created in the [$virtual_network_name] virtual network"
   else
     echo "Failed to create [$user_subnet_name] user subnet in the [$virtual_network_name] virtual network"
-    exit
+    exit 1
   fi
 else
   echo "[$user_subnet_name] user subnet already exists in the [$virtual_network_name] virtual network"
@@ -412,7 +412,7 @@ if [[ $? != 0 ]]; then
     echo "[$bastion_subnet_name] bastion subnet successfully created in the [$virtual_network_name] virtual network"
   else
     echo "Failed to create [$bastion_subnet_name] bastion subnet in the [$virtual_network_name] virtual network"
-    exit
+    exit 1
   fi
 else
   echo "[$bastion_subnet_name] bastion subnet already exists in the [$virtual_network_name] virtual network"
@@ -452,7 +452,7 @@ for node_subnet_name in $system_subnet_name $user_subnet_name; do
     echo "The [Microsoft.Storage] service endpoint was successfully enabled on the [$node_subnet_name] subnet"
   else
     echo "Failed to enable the [Microsoft.Storage] service endpoint on the [$node_subnet_name] subnet"
-    exit
+    exit 1
   fi
 done
 
@@ -468,7 +468,7 @@ if [[ -n $virtual_network_id ]]; then
   echo "Successfully retrieved the resource ID for the [$virtual_network_name] virtual network"
 else
   echo "Failed to retrieve the resource ID for the [$virtual_network_name] virtual network"
-  exit
+  exit 1
 fi
 
 # Retrieve the system subnet id
@@ -484,7 +484,7 @@ if [[ -n $system_subnet_id ]]; then
   echo "Successfully retrieved the id for the [$system_subnet_name] subnet"
 else
   echo "Failed to retrieve the id for the [$system_subnet_name] subnet"
-  exit
+  exit 1
 fi
 
 # Retrieve the user subnet id
@@ -500,7 +500,7 @@ if [[ -n $user_subnet_id ]]; then
   echo "Successfully retrieved the id for the [$user_subnet_name] subnet"
 else
   echo "Failed to retrieve the id for the [$user_subnet_name] subnet"
-  exit
+  exit 1
 fi
 
 # Check if the Azure Container Registry already exists
@@ -526,7 +526,7 @@ if [[ $? != 0 ]]; then
     echo "[$acr_name] container registry successfully created in the [$resource_group_name] resource group"
   else
     echo "Failed to create [$acr_name] container registry in the [$resource_group_name] resource group"
-    exit
+    exit 1
   fi
 else
   echo "[$acr_name] container registry already exists in the [$resource_group_name] resource group"
@@ -596,7 +596,7 @@ if [[ $? != 0 ]]; then
     echo "[$aks_cluster_name] aks cluster successfully created in the [$resource_group_name] resource group"
   else
     echo "Failed to create [$aks_cluster_name] aks cluster in the [$resource_group_name] resource group"
-    exit
+    exit 1
   fi
 else
   echo "[$aks_cluster_name] aks cluster already exists in the [$resource_group_name] resource group"
@@ -640,7 +640,7 @@ else
     echo "The Azure Files CSI driver and the CSI snapshot controller were successfully enabled on the [$aks_cluster_name] AKS cluster"
   else
     echo "Failed to enable the Azure Files CSI driver on the [$aks_cluster_name] AKS cluster"
-    exit
+    exit 1
   fi
 fi
 
@@ -657,7 +657,7 @@ if [[ -n $cluster_identity_principal_id ]]; then
   echo "Successfully retrieved the principalId for the [$aks_cluster_name] AKS cluster identity"
 else
   echo "Failed to retrieve the principalId for the [$aks_cluster_name] AKS cluster identity"
-  exit
+  exit 1
 fi
 
 # Assign the Network Contributor role to the cluster identity on the virtual network
@@ -757,7 +757,7 @@ if [[ -n $kv_secret_provider_managed_identity_object_id ]]; then
   echo "Successfully retrieved the objectId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
 else
   echo "Failed to retrieve the objectId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
-  exit
+  exit 1
 fi
 
 # Get the clientId of the Azure Key Vault Secrets Provider identity
@@ -771,7 +771,7 @@ if [[ -n $kv_secret_provider_managed_identity_client_id ]]; then
   echo "Successfully retrieved the clientId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
 else
   echo "Failed to retrieve the clientId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
-  exit
+  exit 1
 fi
 
 # Get the resourceId of the Azure Key Vault Secrets Provider identity
@@ -785,7 +785,7 @@ if [[ -n $kv_secret_provider_managed_identity_resource_id ]]; then
   echo "Successfully retrieved the resourceId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
 else
   echo "Failed to retrieve the resourceId for the Azure Key Vault Secrets Provider identity in the [$aks_cluster_name] AKS cluster"
-  exit
+  exit 1
 fi
 
 # Get the name of the Azure Key Vault Secrets Provider identity from the resourceId
@@ -849,7 +849,7 @@ if [[ $? == 0 ]]; then
   echo "Credentials for the [$aks_cluster_name] cluster successfully retrieved"
 else
   echo "Failed to retrieve the credentials for the [$aks_cluster_name] cluster"
-  exit
+  exit 1
 fi
 
 # Print the storage drivers enabled on the cluster, followed by the storage classes they provide.

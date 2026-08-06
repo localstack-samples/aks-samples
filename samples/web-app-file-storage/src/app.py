@@ -118,58 +118,98 @@ def read_activities_from_dir():
     except Exception as ex:
         print(f"An error occurred while reading the activity files: {ex}")
 
-def write_activity(name: str | None, content: str | None):
-    """Create or overwrite an activity file in the activities directory."""
+def is_activity_name(name: str | None) -> bool:
+    """Whether the name is one of this app's activity files, and nothing else.
+
+    Every activity is a file called YYYY-MM-DD-HH-MM-SS-activity.txt directly inside the mounted
+    share, so requiring that shape is both the read filter and the write guard: it rejects an empty
+    name, '.' and '..', anything carrying a path separator, and any name the app did not create.
+    Names arrive from a form field, so they are checked before they ever reach the file system.
+    """
+    if not name or name in (".", ".."):
+        return False
+
+    if name != os.path.basename(name):
+        return False
+
+    if os.sep in name or (os.altsep and os.altsep in name):
+        return False
+
+    return name.endswith(ACTIVITY_FILE_SUFFIX)
+
+def write_activity(name: str | None, content: str | None) -> bool:
+    """Create or overwrite an activity file in the activities directory.
+
+    Returns whether the activity is on the share, so the caller never reports a success that did not
+    happen: an unmounted or read-only share has to reach the user, not just the log.
+    """
     global activities_dir
-
-    # Check if name and content are provided
-    if not name or not content:
-        raise ValueError("Both 'name' and 'content' must be provided to write an activity.")
-
     try:
+        if not content:
+            raise ValueError("An activity cannot be empty.")
+
         if not activities_dir:
             raise ValueError("Activities directory is not set. Please call get_activities_dir() first.")
 
-        # Reject a name that would escape the activities directory
-        if os.path.basename(name) != name:
-            raise ValueError(f"Invalid activity name '{name}': it must not contain a path separator.")
+        if not is_activity_name(name):
+            raise ValueError(f"Invalid activity name '{name}'.")
 
-        path = os.path.join(activities_dir, name)
+        path = os.path.join(activities_dir, str(name))
 
         print(f"Writing activity file '{name}' in directory '{activities_dir}'.")
         with open(path, "w", encoding="utf-8") as file:
             file.write(content)
         print(f"Activity file '{name}' written successfully.")
+        return True
     except ValueError as ve:
         print(f"Configuration Error: {ve}")
+        return False
     except OSError as ose:
         print(f"An error occurred while writing the activity file: {ose}")
+        return False
     except Exception as ex:
         print(f"An error occurred while writing the activity file: {ex}")
+        return False
 
-def delete_activity(name: str):
-    """Delete an activity file from the activities directory."""
+def delete_activity(name: str | None) -> bool:
+    """Delete an activity file from the activities directory.
+
+    Returns whether the activity is gone from the share. A file that is already gone counts as gone:
+    every replica mounts the same share, so another replica may have deleted it a moment earlier,
+    and the caller should converge on that instead of reporting a failure.
+    """
     global activities_dir
     try:
         if not activities_dir:
             raise ValueError("Activities directory is not set. Please call get_activities_dir() first.")
 
-        if os.path.basename(name) != name:
-            raise ValueError(f"Invalid activity name '{name}': it must not contain a path separator.")
+        if not is_activity_name(name):
+            raise ValueError(f"Invalid activity name '{name}'.")
 
-        path = os.path.join(activities_dir, name)
+        path = os.path.join(activities_dir, str(name))
 
         print(f"Deleting activity file '{name}' from directory '{activities_dir}'.")
         os.remove(path)
         print(f"Activity file '{name}' deleted successfully.")
+        return True
     except ValueError as ve:
         print(f"Configuration Error: {ve}")
+        return False
     except FileNotFoundError:
-        print(f"Activity file '{name}' does not exist in directory '{activities_dir}'.")
+        # A missing activities directory is not a deleted activity: the share itself is gone, and
+        # reporting success would hide that. Only a missing file counts as already deleted.
+        if activities_dir and not os.path.isdir(activities_dir):
+            print(f"Activities directory '{activities_dir}' does not exist. Is the Azure file share mounted?")
+            return False
+
+        print(f"Activity file '{name}' does not exist in directory '{activities_dir}': already deleted.")
+        return True
     except OSError as ose:
         print(f"An error occurred while deleting the activity file: {ose}")
+        return False
     except Exception as ex:
         print(f"An error occurred while deleting the activity file: {ex}")
+        return False
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -179,19 +219,23 @@ def index():
         if activity:
             if row_id:
                 # Overwrite the content of the existing activity file in place
-                write_activity(row_id, activity)
-                for i, act in enumerate(activities):
-                    if act[0] == row_id:
-                        activities[i] = (row_id, activity)
-                        break
-                flash('Activity updated successfully.')
+                if write_activity(row_id, activity):
+                    for i, act in enumerate(activities):
+                        if act[0] == row_id:
+                            activities[i] = (row_id, activity)
+                            break
+                    flash('Activity updated successfully.')
+                else:
+                    flash('Failed to update the activity on the file share.')
             else:
                 # Generate a unique file name with a timestamp
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
                 name = f"{timestamp}{ACTIVITY_FILE_SUFFIX}"
-                write_activity(name, activity)
-                activities.append((name, activity))
-                flash('Activity added successfully.')
+                if write_activity(name, activity):
+                    activities.append((name, activity))
+                    flash('Activity added successfully.')
+                else:
+                    flash('Failed to add the activity to the file share.')
         return redirect(url_for('index'))
 
     # Always reload the activities from the Azure file share on GET
@@ -199,12 +243,23 @@ def index():
     read_activities_from_dir()
     return render_template('index.html', activities=activities, pod_name=pod_name)
 
-@app.route('/delete/<int:activity_id>', methods=['POST'])
-def delete(activity_id):
-    if 0 <= activity_id < len(activities):
-        delete_activity(activities[activity_id][0])
-        activities.pop(activity_id)
+@app.route('/delete', methods=['POST'])
+def delete():
+    # The activity is identified by its file name, never by its position in the rendered page. Every
+    # replica mounts the same share and reloads it on each GET, so the list can change between
+    # rendering a page and submitting a delete from it, and an index would then delete whatever
+    # activity happens to sit at that position now.
+    name = request.form.get('activity_id', '').strip()
+
+    if delete_activity(name):
+        for i, act in enumerate(activities):
+            if act[0] == name:
+                activities.pop(i)
+                break
         flash('Activity deleted successfully.')
+    else:
+        flash('Failed to delete the activity from the file share.')
+
     return redirect(url_for('index'))
 
 # Initialize the application and the activities directory when the module is loaded.

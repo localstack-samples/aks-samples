@@ -70,6 +70,12 @@ spec:
             - |
               set -e
 
+              # A no-op when ACTIVITIES_DIR is the mount point itself, which is the default. It
+              # matters when it points at a subdirectory of the share: that directory has to exist
+              # before it can be chowned or seeded, and the app is not able to create it as uid 1000
+              # on an NFS share owned by root.
+              mkdir -p "$ACTIVITIES_DIR"
+
               if [ "$FILE_SHARE_PROTOCOL" = "nfs" ]; then
                 echo "Taking ownership of $ACTIVITIES_DIR as uid 1000..."
                 chown 1000:1000 "$ACTIVITIES_DIR"
