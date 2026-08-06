@@ -12,6 +12,31 @@ These tutorials each build a policy scenario step by step and verify, from insid
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+The engine is chosen when the cluster is created, and each tutorial then builds its policy on top of it and verifies the result from inside probe pods:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart TB
+    create["az aks create --network-policy<br/>azure | cilium | calico"]
+    engine["policy engine on the cluster data plane"]
+
+    calico["calico-policy-tutorial<br/>cluster-wide default-deny GlobalNetworkPolicy,<br/>then selective NetworkPolicy egress and ingress"]
+    egress["cilium/egress-tutorial<br/>CiliumNetworkPolicy: FQDN egress,<br/>exact host, wildcard, wildcard plus port"]
+    ingress["cilium/ingress-tutorial<br/>CiliumNetworkPolicy: identity-aware ingress,<br/>L3/L4 then L7"]
+
+    verify["each tutorial verifies from a probe pod:<br/>the allowed path works, everything else is blocked"]
+
+    create -->|"chooses the engine at create time"| engine
+    engine --> calico
+    engine --> egress
+    engine --> ingress
+    calico --> verify
+    egress --> verify
+    ingress --> verify
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the policy engine that matches the tutorial you want to run (Calico for the Calico tutorial, Cilium for the two Cilium tutorials).

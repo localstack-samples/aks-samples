@@ -27,6 +27,7 @@ flowchart LR
             svcint["Service<br/>internal annotation"]
             backend["backend Deployment"]
         end
+        nodes["cluster nodes"]
     end
 
     subgraph noderg["node resource group MC_*"]
@@ -43,7 +44,7 @@ flowchart LR
     ccm -->|"allocates"| pip
     ccm -->|"Allow rule per loadBalancerSourceRanges"| nsg
     ccm -->|"writes EXTERNAL-IP back"| svcpub
-    cnm -->|"labels and addresses nodes"| aks
+    cnm -->|"labels and addresses"| nodes
     lb -.->|"backend pool targets"| backend
 ```
 

@@ -14,6 +14,38 @@ Start with [service-bus](service-bus/) if you are new to KEDA: it is the scenari
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+The three tutorials share one shape: a producer fills an Azure event source, KEDA reads its backlog and drives an HPA that scales the consumer from zero and back. Only the event source and the scaler change:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    subgraph aks["AKS cluster"]
+        subgraph kubesystem["kube-system: KEDA add-on"]
+            operator["keda-operator"]
+            metrics["keda-metrics-apiserver"]
+        end
+        subgraph appns["tutorial namespace"]
+            producer["producer<br/>Job"]
+            scaledobject["ScaledObject"]
+            hpa["HorizontalPodAutoscaler<br/>created by KEDA"]
+            consumer["consumer<br/>Deployment<br/>0 to 4 replicas"]
+        end
+    end
+
+    source(["the tutorial's Azure event source:<br/>a Service Bus queue, a Storage queue,<br/>or an Event Hubs hub with blob checkpoints"])
+
+    producer -->|"fills"| source
+    source -->|"drained by"| consumer
+    scaledobject -.->|"read by"| operator
+    operator -->|"reads the backlog"| source
+    operator -->|"creates and owns"| hpa
+    operator -->|"publishes an external metric"| metrics
+    metrics -->|"serves the metric"| hpa
+    hpa -->|"scales from zero and back"| consumer
+```
+
 ## One shared managed identity
 
 The `keda-operator` service account exists once, in `kube-system`, and the annotation that binds it to a managed identity therefore applies cluster-wide. So the three tutorials deliberately share a single user-assigned managed identity, `local-keda-uami-test`, declared in [00-variables.sh](00-variables.sh):

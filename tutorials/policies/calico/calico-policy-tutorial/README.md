@@ -11,6 +11,36 @@ The demo runs in the `advanced-policy-demo` namespace with an `nginx` Deployment
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+The tutorial moves the cluster from open connectivity to zero trust, then re-opens exactly one path:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    subgraph aks["AKS cluster with the Calico policy engine"]
+        subgraph policies["policies, applied in order"]
+            deny["1. GlobalNetworkPolicy<br/>default-deny, cluster-wide"]
+            egress["2. NetworkPolicy<br/>allow egress from access"]
+            ingress["3. NetworkPolicy<br/>allow ingress to nginx from access"]
+        end
+        subgraph ns["tutorial namespace"]
+            access["access pod<br/>probe"]
+            nginx["nginx pod<br/>plus Service"]
+        end
+    end
+
+    dns(["kube-dns"])
+    internet(["google.com"])
+
+    access -->|"blocked by 1, allowed by 3"| nginx
+    access -->|"blocked by 1, allowed by 2"| internet
+    access -->|"blocked by 1 as well"| dns
+    deny -.->|"applies to every pod"| ns
+    egress -.->|"selects"| access
+    ingress -.->|"selects"| nginx
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the **Calico** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Calico).

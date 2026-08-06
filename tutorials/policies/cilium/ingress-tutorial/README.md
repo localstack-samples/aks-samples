@@ -18,6 +18,33 @@ An L7 policy adds an HTTP filter so even empire ships may only call `POST /v1/re
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+The same `deathstar` API, first restricted by workload identity at L3/L4, then by HTTP path at L7:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    subgraph aks["AKS cluster with the Cilium data plane"]
+        subgraph ns["namespace starwars"]
+            tie["tiefighter pod<br/>org=empire"]
+            xwing["xwing pod<br/>org=alliance"]
+            svc["deathstar Service<br/>port 80"]
+            ds["deathstar Deployment<br/>2 replicas"]
+        end
+        subgraph policy["CiliumNetworkPolicy rule1, applied in turn"]
+            l34["L3/L4<br/>allow org=empire on 80/TCP"]
+            l7["L7<br/>allow POST /v1/request-landing only"]
+        end
+    end
+
+    l34 -.->|"selects"| svc
+    l7 -.->|"replaces the L3/L4 rule"| svc
+    tie -->|"allowed by both, except other paths under L7"| svc
+    xwing -->|"denied"| svc
+    svc --> ds
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).

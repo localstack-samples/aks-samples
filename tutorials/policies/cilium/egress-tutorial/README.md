@@ -6,6 +6,38 @@ It uses the Cilium [Star Wars demo](https://cilium.io/blog/2017/5/4/demo-may-the
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+Cilium enforces FQDN egress by watching the pod's DNS answers, so every policy also has to allow DNS itself:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    subgraph aks["AKS cluster with the Cilium data plane"]
+        subgraph ns["namespace starwars"]
+            mediabot["mediabot pod<br/>org=empire, class=mediabot"]
+        end
+        subgraph policy["CiliumNetworkPolicy fqdn, one at a time"]
+            exact["exact host<br/>api.github.com"]
+            wildcard["wildcard<br/>*.github.com"]
+            port["wildcard locked to a port"]
+        end
+        agent["cilium agent<br/>observes DNS, enforces egress"]
+    end
+
+    dns(["kube-dns"])
+    allowed(["allowed GitHub hostname"])
+    blocked(["any other hostname"])
+
+    exact -.->|"selects"| mediabot
+    wildcard -.->|"selects"| mediabot
+    port -.->|"selects"| mediabot
+    mediabot -->|"DNS, allowed by every policy"| dns
+    dns -.->|"answers observed by"| agent
+    mediabot -->|"allowed"| allowed
+    mediabot -->|"denied"| blocked
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).
