@@ -72,10 +72,10 @@ flowchart LR
     driver -->|"mounts /mnt/secrets read-only"| wipod
     driver -->|"mounts /mnt/secrets read-only"| mipod
     driver -.->|"delegates each mount to"| provider
-    provider -.->|"exchanges the pod's projected token for"| uami
-    provider -.->|"authenticates as"| addonid
-    uami -->|"Key Vault Administrator<br/>reads username and password"| kv
-    addonid -->|"Key Vault Administrator<br/>reads username and password"| kv
+    provider -.->|"workload-identity sample: exchanges the pod's projected token for"| uami
+    provider -.->|"user-assigned-managed-identity sample: authenticates as"| addonid
+    uami -->|"workload-identity sample: Key Vault Administrator<br/>reads username and password"| kv
+    addonid -->|"user-assigned-managed-identity sample: Key Vault Administrator<br/>reads username and password"| kv
 ```
 
 ## Identity Access Modes
