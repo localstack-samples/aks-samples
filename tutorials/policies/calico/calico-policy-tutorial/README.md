@@ -11,6 +11,40 @@ The demo runs in the `advanced-policy-demo` namespace with an `nginx` Deployment
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+The cluster-wide default-deny stays in force for the rest of the tutorial; the two namespaced policies then re-open exactly one path through it, one direction at a time:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    internet(["public internet<br/>google.com"])
+
+    subgraph aks["Azure Kubernetes Service cluster"]
+        gnp["default-deny<br/>projectcalico.org/v3 GlobalNetworkPolicy,<br/>cluster-wide: every namespace except kube-system,<br/>calico-system and calico-apiserver"]
+
+        subgraph kubesystem["kube-system"]
+            dns["kube-dns<br/>excluded from the default deny"]
+        end
+
+        subgraph demo["namespace advanced-policy-demo"]
+            access["access<br/>busybox probe pod, run=access"]
+            svc["nginx<br/>ClusterIP Service, port 80"]
+            nginx["nginx<br/>Deployment, app=nginx"]
+            egresspol["allow-busybox-egress<br/>projectcalico.org/v3 NetworkPolicy:<br/>Egress from run=access"]
+            ingresspol["allow-nginx-ingress<br/>projectcalico.org/v3 NetworkPolicy:<br/>Ingress to app=nginx, source run=access"]
+        end
+    end
+
+    gnp -.->|"03 denies all ingress and egress"| demo
+    egresspol -.->|"05 re-opens egress, verified by 06"| access
+    ingresspol -.->|"07 re-opens ingress, verified by 08"| nginx
+    access -->|"curl nginx: blocked by 03,<br/>allowed only from 07"| svc
+    svc --> nginx
+    access -->|"curl google.com: blocked by 03,<br/>allowed from 05"| internet
+    access -.->|"DNS resolution: fails under 03,<br/>restored by 05"| dns
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the **Calico** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Calico).

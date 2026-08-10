@@ -18,6 +18,34 @@ An L7 policy adds an HTTP filter so even empire ships may only call `POST /v1/re
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+In Kubernetes terms, the two policies only ever change what the `deathstar` endpoints accept. The client pods are never modified, and the ships are told apart by their labels rather than by their addresses:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    subgraph aks["Azure Kubernetes Service cluster, Cilium data plane"]
+        subgraph kubesystem["kube-system"]
+            agent["cilium-agent<br/>L3/L4 identity and L7 HTTP enforcement"]
+        end
+
+        subgraph starwars["namespace starwars"]
+            tie["tiefighter<br/>org=empire, class=tiefighter"]
+            xwing["xwing<br/>org=alliance, class=xwing"]
+            svc["deathstar<br/>ClusterIP Service, port 80"]
+            deathstar["deathstar<br/>Deployment, 2 replicas<br/>org=empire, class=deathstar"]
+            policy["rule1<br/>CiliumNetworkPolicy, one name<br/>reapplied by 07 and 09"]
+        end
+    end
+
+    policy -.->|"loaded into"| agent
+    agent -.->|"enforces ingress to the endpoints matching<br/>org=empire, class=deathstar"| deathstar
+    tie -->|"POST /v1/request-landing: allowed throughout<br/>PUT /v1/exhaust-port: allowed until 09,<br/>then denied at L7"| svc
+    xwing -->|"both methods allowed until 07,<br/>then dropped at L3: org=alliance"| svc
+    svc -->|"port 80/TCP"| deathstar
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).

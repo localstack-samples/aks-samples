@@ -6,6 +6,38 @@ It uses the Cilium [Star Wars demo](https://cilium.io/blog/2017/5/4/demo-may-the
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+Because Cilium enforces FQDN rules by watching DNS, the `cilium-agent` learns the addresses behind each hostname from the answers `kube-dns` returns to the pod. That is what lets the same `fqdn` policy be tightened three times without touching `mediabot`:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    subgraph aks["Azure Kubernetes Service cluster, Cilium data plane"]
+        subgraph kubesystem["kube-system"]
+            agent["cilium-agent<br/>DNS proxy and FQDN enforcement"]
+            dns["kube-dns"]
+        end
+
+        subgraph starwars["namespace starwars"]
+            mediabot["mediabot<br/>org=empire, class=mediabot"]
+            policy["fqdn<br/>CiliumNetworkPolicy, one name<br/>reapplied by 03, 05 and 07"]
+        end
+    end
+
+    api(["api.github.com<br/>allowed by 03 matchName,<br/>and by 05 and 07"])
+    status(["status.github.com<br/>blocked by 03,<br/>allowed from 05 matchPattern"])
+    apex(["github.com, the apex domain<br/>never allowed: *.github.com<br/>requires a subdomain label"])
+
+    policy -.->|"loaded into"| agent
+    agent -.->|"enforces every egress connection from"| mediabot
+    mediabot -->|"DNS to port 53, allowed by every policy"| dns
+    dns -.->|"answers observed by the DNS proxy,<br/>which maps each FQDN to its addresses"| agent
+    mediabot -->|"HTTPS on 443, and HTTP on 80 until 07<br/>restricts the pattern to 443/TCP"| api
+    mediabot --> status
+    mediabot --> apex
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the **Cilium** network-policy option of [scripts/01-user-assigned-managed-identity.sh](../../../../scripts/01-user-assigned-managed-identity.sh) (the script's menu offers Azure, Cilium, and Calico network policy; pick Cilium).
