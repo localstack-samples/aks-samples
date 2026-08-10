@@ -14,6 +14,53 @@ Start with [service-bus](service-bus/) if you are new to KEDA: it is the scenari
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+The KEDA add-on and the managed identity exist once per cluster, and each tutorial adds its own namespace, event source and role assignment on top of them:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    subgraph shared["Shared by all three tutorials"]
+        uami["local-keda-uami-test<br/>one user-assigned managed identity"]
+        operator["keda-operator<br/>kube-system, installed by the AKS add-on"]
+        metrics["keda-metrics-apiserver<br/>kube-system"]
+    end
+
+    subgraph sb["service-bus"]
+        sbapp["namespace keda-service-bus-sample<br/>sb-producer Job<br/>sb-consumer Deployment, 0 to 4 replicas"]
+        sbqueue(["work-items<br/>Service Bus queue"])
+    end
+
+    subgraph queue["queue-storage"]
+        queueapp["namespace keda-queue-storage-sample<br/>queue-producer Job<br/>queue-consumer Deployment, 0 to 4 replicas"]
+        storagequeue(["jobs<br/>Storage queue"])
+    end
+
+    subgraph eh["event-hubs"]
+        ehapp["namespace keda-event-hubs-sample<br/>eh-producer Job<br/>eh-consumer Deployment, 0 to 4 replicas"]
+        hub[["events<br/>event hub and its blob checkpoints"]]
+    end
+
+    uami -.->|"federated to system:serviceaccount:<br/>kube-system:keda-operator"| operator
+    operator -->|"one external metric per ScaledObject"| metrics
+
+    sbapp <-->|"sends and drains 100 messages<br/>connection string"| sbqueue
+    operator -->|"azure-servicebus, activeMessageCount"| sbqueue
+    uami -.->|"Azure Service Bus Data Owner"| sbqueue
+    metrics -->|"keda-hpa-sb-scaler scales sb-consumer"| sbapp
+
+    queueapp <-->|"sends and drains 100 messages<br/>workload identity"| storagequeue
+    operator -->|"azure-queue, approximateMessagesCount"| storagequeue
+    uami -.->|"Storage Queue Data Contributor"| storagequeue
+    metrics -->|"keda-hpa-queue-scaler scales queue-consumer"| queueapp
+
+    ehapp <-->|"sends 100 events, then checkpoints<br/>connection string"| hub
+    operator -->|"azure-eventhub, per-partition checkpoint lag"| hub
+    uami -.->|"Azure Event Hubs Data Owner<br/>Storage Blob Data Contributor"| hub
+    metrics -->|"keda-hpa-eh-scaler scales eh-consumer"| ehapp
+```
+
 ## One shared managed identity
 
 The `keda-operator` service account exists once, in `kube-system`, and the annotation that binds it to a managed identity therefore applies cluster-wide. So the three tutorials deliberately share a single user-assigned managed identity, `local-keda-uami-test`, declared in [00-variables.sh](00-variables.sh):

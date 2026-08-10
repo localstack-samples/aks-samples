@@ -12,6 +12,44 @@ These tutorials each build a policy scenario step by step and verify, from insid
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+The engine is chosen when the cluster is created and cannot be swapped afterwards, so each tutorial only runs on a cluster built for its engine:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    create(["scripts/01-user-assigned-managed-identity.sh<br/>picks --network-policy and --network-dataplane"])
+
+    subgraph aks["Azure Kubernetes Service cluster, one engine per cluster"]
+        azure["--network-policy azure<br/>azure data plane<br/>no tutorial in this folder"]
+        calico["--network-policy calico<br/>azure data plane<br/>calico-system, calico-apiserver"]
+        cilium["--network-policy cilium<br/>cilium data plane<br/>cilium-agent in kube-system"]
+    end
+
+    k8spol["networking.k8s.io/v1<br/>NetworkPolicy, applied with kubectl"]
+    calicopol["projectcalico.org/v3<br/>GlobalNetworkPolicy and NetworkPolicy,<br/>applied with calicoctl"]
+    ciliumpol["cilium.io/v2<br/>CiliumNetworkPolicy, applied with kubectl"]
+
+    subgraph tutorials["Tutorials"]
+        calicotut["calico/calico-policy-tutorial<br/>namespace advanced-policy-demo<br/>cluster-wide default-deny, then selective allow"]
+        egresstut["cilium/egress-tutorial<br/>namespace starwars<br/>FQDN egress: name, pattern, pattern plus port"]
+        ingresstut["cilium/ingress-tutorial<br/>namespace starwars<br/>identity-aware ingress at L3/L4, then L7 HTTP"]
+    end
+
+    create -->|"chosen at cluster creation"| azure
+    create --> calico
+    create --> cilium
+    k8spol -.->|"enforced by every engine"| azure
+    k8spol -.-> calico
+    k8spol -.-> cilium
+    calicopol -.->|"enforced by"| calico
+    ciliumpol -.->|"enforced by"| cilium
+    calico -->|"required by"| calicotut
+    cilium -->|"required by"| egresstut
+    cilium -->|"required by"| ingresstut
+```
+
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with the policy engine that matches the tutorial you want to run (Calico for the Calico tutorial, Cilium for the two Cilium tutorials).

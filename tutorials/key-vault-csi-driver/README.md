@@ -34,6 +34,50 @@ If a secret in an external secrets store is updated after the initial deployment
 
 > **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
 
+## Architecture
+
+The add-on installs one CSI driver and one Azure provider in `kube-system`, and both samples mount the same two secrets from the same key vault. Only the identity the provider authenticates with differs:
+
+```mermaid
+%%{init: {'themeVariables': {'clusterBkg': 'transparent', 'clusterBorder': '#8c8c8c'}}}%%
+flowchart LR
+    subgraph aks["Azure Kubernetes Service cluster"]
+        subgraph kubesystem["kube-system: Azure Key Vault Secrets Provider add-on"]
+            driver["secrets-store-csi-driver"]
+            provider["secrets-store-provider-azure"]
+        end
+
+        subgraph wins["namespace wi-secret-store-test"]
+            wisa["secret-store-sa<br/>ServiceAccount, annotated with the client id"]
+            wispc["demo-secret-provider-class<br/>SecretProviderClass, clientID"]
+            wipod["demo-pod<br/>nginx, label azure.workload.identity/use"]
+        end
+
+        subgraph mins["namespace mi-secret-store-test"]
+            mispc["demo-secret-provider-class<br/>SecretProviderClass, useVMManagedIdentity"]
+            mipod["demo-pod<br/>nginx, no service account"]
+        end
+    end
+
+    subgraph azure["Azure"]
+        uami["local-identity-test<br/>user-assigned managed identity, customer-created"]
+        addonid["azureKeyvaultSecretsProvider<br/>add-on identity, node resource group"]
+        kv[("local-kv-test<br/>key vault: username, password")]
+    end
+
+    wisa -.->|"federated credential<br/>system:serviceaccount:wi-secret-store-test:secret-store-sa"| uami
+    wisa -.->|"identity used by"| wipod
+    wispc -.->|"read by"| provider
+    mispc -.->|"read by"| provider
+    driver -->|"mounts /mnt/secrets read-only"| wipod
+    driver -->|"mounts /mnt/secrets read-only"| mipod
+    driver -.->|"delegates each mount to"| provider
+    provider -.->|"workload-identity sample: exchanges the pod's projected token for"| uami
+    provider -.->|"user-assigned-managed-identity sample: authenticates as"| addonid
+    uami -->|"workload-identity sample: Key Vault Administrator<br/>reads username and password"| kv
+    addonid -->|"user-assigned-managed-identity sample: Key Vault Administrator<br/>reads username and password"| kv
+```
+
 ## Identity Access Modes
 
 The Azure Key Vault provider for Secrets Store CSI Driver supports more than one way to authenticate to Azure Key Vault. This folder contains two samples, each demonstrating a different identity access mode. Both samples mount the same `username` and `password` secrets into a demo nginx pod, but they differ in how the CSI driver obtains the credentials used to read the secrets from Key Vault.
