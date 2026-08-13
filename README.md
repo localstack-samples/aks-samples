@@ -1,4 +1,4 @@
-# Azure Kubernetes Service (AKS) Samples
+# AKS Samples and Tutorials for LocalStack for Azure
 
 This repository shows how to deploy an [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/what-is-aks) cluster and run real workloads on it, either against Azure in the cloud or locally on the [LocalStack for Azure](https://docs.localstack.cloud/azure/) emulator. Everything here runs unchanged against both.
 
