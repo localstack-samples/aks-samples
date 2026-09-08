@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vacation-planner-file-seed
+  namespace: vacation-planner-file
+  labels:
+    app: vacation-planner-file
+data:
+  # Sample activities the init container of the deployment copies into the Azure file share the first
+  # time the app is deployed, so the share is never empty on the first page load.
+  #
+  # Each key is the name of an activity file, in the same YYYY-MM-DD-HH-MM-SS-activity.txt format the
+  # app itself uses, and the value is the content of the file. The names are fixed rather than
+  # generated at runtime, which is what makes the seeding safe when the three replicas start at once:
+  # every pod would copy the same name with the same content, and the init container skips a file
+  # that is already there.
+  #
+  # This is the only seeding mechanism, and it covers all four combinations of the sample: it runs
+  # inside the cluster on the mounted share, so it works for a share the CSI driver has just created
+  # (whose name is not known to the host) and for an NFS share (which is not reachable over the file
+  # data plane REST API on Azure).
+  2026-01-05-09-00-00-activity.txt: "Snorkelling at Coral Bay"
+  2026-01-05-09-05-00-activity.txt: "Sunset hike to the Cape lighthouse"
+  2026-01-05-09-10-00-activity.txt: "Cooking class: pasta from scratch"
