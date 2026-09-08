@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vacation-planner-blob
+  namespace: vacation-planner-blob
+  labels:
+    app: vacation-planner-blob
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vacation-planner-blob
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: vacation-planner-blob
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: vacation-planner-blob-sa
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: vacation-planner-blob
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: vacation-planner-blob
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+        - name: vacation-planner-blob
+          image: <your-registry>.azurecr.io/vacation-planner-blob-dotnet:v1
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: CONTAINER_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: vacation-planner-blob-config
+                  key: CONTAINER_NAME
+            - name: AZURE_STORAGE_ACCOUNT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: vacation-planner-blob-config
+                  key: AZURE_STORAGE_ACCOUNT_URL
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vacation-planner-blob-secrets
+                  key: SECRET_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
