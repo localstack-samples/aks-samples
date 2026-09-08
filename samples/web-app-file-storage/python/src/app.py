@@ -2,7 +2,7 @@ import os
 import socket
 import datetime
 from typing import List, Tuple
-from flask import Flask, flash, render_template, request, redirect, url_for
+from flask import Flask, flash, jsonify, render_template, request, redirect, url_for
 
 # Initialize Flask application
 app: Flask = Flask(__name__)
@@ -261,6 +261,19 @@ def delete():
         flash('Failed to delete the activity from the file share.')
 
     return redirect(url_for('index'))
+
+@app.route('/health')
+def health():
+    """Liveness and readiness probe: reports whether the mounted activities directory is usable."""
+    try:
+        if not activities_dir or not os.path.isdir(activities_dir):
+            raise ValueError(f"Activities directory '{activities_dir}' does not exist. Is the Azure file share mounted?")
+        if not os.access(activities_dir, os.W_OK | os.X_OK):
+            raise ValueError(f"Activities directory '{activities_dir}' is not writable by uid {os.geteuid()}.")
+        return jsonify({"status": "ok"})
+    except Exception as ex:
+        print(f"Health check failed: {ex}")
+        return jsonify({"status": "unavailable"}), 503
 
 # Initialize the application and the activities directory when the module is loaded.
 # This ensures that the setup runs regardless of how the app is started (e.g., via 'flask run' or directly).

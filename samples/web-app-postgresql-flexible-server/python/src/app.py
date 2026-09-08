@@ -5,7 +5,7 @@ import logging
 import os
 from typing import List, Tuple
 
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
 from database import PostgresClient
 
@@ -84,6 +84,17 @@ def delete(activity_id: int):
         db_client.delete_activity(activities[activity_id][0])
         flash("Activity deleted.")
     return redirect(url_for("index"))
+
+
+@app.route("/health")
+def health():
+    """Liveness and readiness probe: reports whether PostgreSQL answers SELECT 1."""
+    try:
+        db_client.ping()
+        return jsonify({"status": "ok"})
+    except Exception as exc:
+        logger.warning("Health check failed: %s", exc)
+        return jsonify({"status": "unavailable"}), 503
 
 
 debug = os.environ.get("DEBUG", "false").lower() == "true"

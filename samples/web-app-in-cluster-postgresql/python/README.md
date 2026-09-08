@@ -52,7 +52,7 @@ Optionally, **after** `05-deploy-app.sh` has deployed and provisioned the databa
 | [`statefulset.yml`](scripts/statefulset.yml) | Creates the in-cluster PostgreSQL cluster: a Secret with the superuser and replication passwords, a ConfigMap with the primary/replica init scripts, the headless / primary (write) / read `ClusterIP` services, and a 3-replica StatefulSet (one primary plus two standbys configured for streaming replication) backed by Azure managed-disk PVCs. |
 | [`configmap.yml`](scripts/configmap.yml) | Creates the ConfigMap holding non-secret input values (the in-cluster PostgreSQL primary service host, database, user, login name) passed to the app as environment variables. |
 | [`secret.yml`](scripts/secret.yml) | Creates the Secret holding sensitive values (the application user's PostgreSQL password and the Flask secret key) passed to the app as environment variables. |
-| [`deployment.yml`](scripts/deployment.yml) | Creates the Kubernetes Deployment, including the pod specification for the web app. |
+| [`deployment.yml`](scripts/deployment.yml) | Creates the Kubernetes Deployment, including the pod specification for the web app. The liveness and readiness probes call `GET /health`. |
 | [`service.yml`](scripts/service.yml) | Creates the `ClusterIP` Service that exposes the web app inside the cluster. |
 
 ## Accessing the web app
@@ -64,3 +64,9 @@ kubectl port-forward service/vacation-planner-postgres 8080:80 -n vacation-plann
 ```
 
 Then browse to [http://localhost:8080](http://localhost:8080). Alternatively, use a tool such as [k9s](https://k9scli.io/) to start the port-forward interactively.
+
+The app also exposes `GET /health`, the endpoint the liveness and readiness probes call: it returns `{"status": "ok"}` when the in-cluster PostgreSQL database is reachable and `503` with `{"status": "unavailable"}` otherwise.
+
+```bash
+curl http://localhost:8080/health
+```

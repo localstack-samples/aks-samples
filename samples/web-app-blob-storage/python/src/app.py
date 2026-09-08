@@ -5,7 +5,7 @@ from typing import List, Tuple
 from azure.identity import DefaultAzureCredential, ClientSecretCredential
 from azure.storage.blob import BlobServiceClient
 from azure.core.exceptions import ResourceExistsError
-from flask import Flask, flash, render_template, request, redirect, url_for
+from flask import Flask, flash, jsonify, render_template, request, redirect, url_for
 
 # Initialize Flask application
 app: Flask = Flask(__name__)
@@ -254,6 +254,19 @@ def delete(activity_id):
         activities.pop(activity_id)
         flash('Activity deleted successfully.')
     return redirect(url_for('index'))
+
+@app.route('/health')
+def health():
+    """Liveness and readiness probe: reports whether the blob container is reachable."""
+    try:
+        if not blob_service_client or not container_name:
+            raise ValueError("BlobServiceClient is not initialized.")
+        if not blob_service_client.get_container_client(container_name).exists():
+            raise ValueError(f"Container '{container_name}' does not exist.")
+        return jsonify({"status": "ok"})
+    except Exception as ex:
+        print(f"Health check failed: {ex}")
+        return jsonify({"status": "unavailable"}), 503
 
 # Initialize the application and Azure services when the module is loaded.
 # This ensures that the setup runs regardless of how the app is started (e.g., via 'flask run' or directly).

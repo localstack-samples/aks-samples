@@ -3,7 +3,7 @@ import os
 import datetime
 import logging
 from typing import List, Tuple
-from flask import Flask, flash, render_template, request, redirect, url_for
+from flask import Flask, flash, jsonify, render_template, request, redirect, url_for
 from mongodb import MongoDbClient
 import hashlib
 
@@ -117,6 +117,16 @@ def delete(activity_id: int):
         flash("Activity deleted.")
 
     return redirect(url_for('index'))
+
+@app.route('/health')
+def health():
+    """Liveness and readiness probe: reports whether the MongoDB server answers a ping."""
+    try:
+        mongodb_client.client.admin.command('ping')
+        return jsonify({"status": "ok"})
+    except Exception as ex:
+        logger.warning("Health check failed: %s", ex)
+        return jsonify({"status": "unavailable"}), 503
 
 # Read debug environment variable
 debug = os.environ.get("DEBUG", "false").lower() == "true"

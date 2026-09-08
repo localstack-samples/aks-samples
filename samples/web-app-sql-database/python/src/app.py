@@ -4,7 +4,7 @@ import os
 from typing import List, Tuple
 
 from activities import ActivitiesHelper
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
 # Initialize Flask application
 app: Flask = Flask(__name__)
@@ -138,6 +138,14 @@ def update(activity_id: int):
         logger.error("Error preparing activity for update: %s", e)
 
     return redirect(url_for('index'))
+
+@app.route('/health')
+def health():
+    """Liveness and readiness probe: reports whether Azure SQL Database answers SELECT 1."""
+    if activities_helper and activities_helper.test_connection():
+        return jsonify({"status": "ok"})
+    logger.warning("Health check failed: the SQL Database connection test did not succeed")
+    return jsonify({"status": "unavailable"}), 503
 
 # Read debug environment variable
 debug = os.environ.get("DEBUG", "false").lower() == "true"

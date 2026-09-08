@@ -50,7 +50,7 @@ cd scripts
 | [`namespace.yml`](scripts/namespace.yml) | Creates the Kubernetes namespace. |
 | [`configmap.yml`](scripts/configmap.yml) | Creates the ConfigMap holding non-secret input values (blob container name, storage account URL, managed identity client ID, tenant ID) passed to the app as environment variables. |
 | [`secret.yml`](scripts/secret.yml) | Creates the Secret holding sensitive values (the Flask secret key, and the optional connection string / client secret fallback) passed to the app as environment variables. |
-| [`deployment.yml`](scripts/deployment.yml) | Creates the Kubernetes Deployment, including the pod specification and the workload-identity service account reference. |
+| [`deployment.yml`](scripts/deployment.yml) | Creates the Kubernetes Deployment, including the pod specification and the workload-identity service account reference. The liveness and readiness probes call `GET /health`. |
 | [`service.yml`](scripts/service.yml) | Creates the `ClusterIP` Service that exposes the web app inside the cluster. |
 | [`issuer.yml`](scripts/issuer.yml) | (Gateway path) cert-manager Issuer that solves the ACME HTTP-01 challenge through a Gateway API HTTPRoute. |
 | [`gateway.yml`](scripts/gateway.yml) | (Gateway path) Gateway API Gateway that exposes the app on the configured public hostname. |
@@ -65,5 +65,11 @@ kubectl port-forward service/vacation-planner-blob 8080:80 -n vacation-planner-b
 ```
 
 Then browse to [http://localhost:8080](http://localhost:8080). Alternatively, use a tool such as [k9s](https://k9scli.io/) to start the port-forward interactively.
+
+The app also exposes `GET /health`, the endpoint the liveness and readiness probes call: it returns `{"status": "ok"}` when the blob container is reachable and `503` with `{"status": "unavailable"}` otherwise.
+
+```bash
+curl http://localhost:8080/health
+```
 
 If you deployed the Gateway path (`DEPLOY_GATEWAY="true"`), the app is instead reachable directly at the public hostname configured in [`00-variables.sh`](scripts/00-variables.sh) (`https://<subdomain>.<dns-zone>`), with no port-forward required.

@@ -48,7 +48,7 @@ cd scripts
 | [`namespace.yml`](scripts/namespace.yml) | Creates the Kubernetes namespace. |
 | [`configmap.yml`](scripts/configmap.yml) | Creates the ConfigMap holding non-secret input values (blob container name, login name) passed to the app as environment variables. |
 | [`secret.yml`](scripts/secret.yml) | Creates the Secret holding sensitive values (the storage account connection string and the Flask secret key) passed to the app as environment variables. |
-| [`deployment.yml`](scripts/deployment.yml) | Creates the Kubernetes Deployment, including the pod specification for the web app. |
+| [`deployment.yml`](scripts/deployment.yml) | Creates the Kubernetes Deployment, including the pod specification for the web app. The liveness and readiness probes call `GET /health`. |
 | [`service.yml`](scripts/service.yml) | Creates the `ClusterIP` Service that exposes the web app inside the cluster. |
 
 ## Accessing the web app
@@ -60,3 +60,9 @@ kubectl port-forward service/vacation-planner-blob 8080:80 -n vacation-planner-b
 ```
 
 Then browse to [http://localhost:8080](http://localhost:8080). Alternatively, use a tool such as [k9s](https://k9scli.io/) to start the port-forward interactively.
+
+The app also exposes `GET /health`, the endpoint the liveness and readiness probes call: it returns `{"status": "ok"}` when the blob container is reachable and `503` with `{"status": "unavailable"}` otherwise.
+
+```bash
+curl http://localhost:8080/health
+```

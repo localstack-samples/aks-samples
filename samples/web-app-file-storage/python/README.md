@@ -92,7 +92,7 @@ cd scripts
 | [`persistentvolume-nfs.yml`](scripts/persistentvolume-nfs.yml) | Creates the `PersistentVolume` bound to a pre-created NFS file share, with `protocol: nfs`, the NFS mount options, and no secret. |
 | [`persistentvolumeclaim.yml`](scripts/persistentvolumeclaim.yml) | Creates the `ReadWriteMany` claim the pods mount. Committed in its static shape (pre-bound by name, empty storage class); `05-deploy-app.sh` rewrites those two fields for dynamic provisioning. |
 | [`storageclass-nfs.yml`](scripts/storageclass-nfs.yml) | Creates the storage class that provisions an NFS file share on demand (`protocol: nfs`, `skuName: Premium_LRS`). Applied for the dynamic NFS combination only. |
-| [`deployment.yml`](scripts/deployment.yml) | Creates the Kubernetes Deployment: three replicas mounting the same share, plus the init container that prepares and seeds it. |
+| [`deployment.yml`](scripts/deployment.yml) | Creates the Kubernetes Deployment: three replicas mounting the same share, plus the init container that prepares and seeds it. The liveness and readiness probes call `GET /health`. |
 | [`service.yml`](scripts/service.yml) | Creates the `ClusterIP` Service that exposes the web app inside the cluster. |
 
 ## Accessing the web app
@@ -104,6 +104,12 @@ kubectl port-forward service/vacation-planner-file 8080:80 -n vacation-planner-f
 ```
 
 Then browse to [http://localhost:8080](http://localhost:8080). Alternatively, use a tool such as [k9s](https://k9scli.io/) to start the port-forward interactively.
+
+The app also exposes `GET /health`, the endpoint the liveness and readiness probes call: it returns `{"status": "ok"}` when the mounted file share is reachable and `503` with `{"status": "unavailable"}` otherwise.
+
+```bash
+curl http://localhost:8080/health
+```
 
 ## Looking at the file share
 

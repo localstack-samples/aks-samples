@@ -2,7 +2,7 @@ import os
 import datetime
 import logging
 import hashlib
-from flask import Flask, flash, render_template, request, redirect, url_for
+from flask import Flask, flash, jsonify, render_template, request, redirect, url_for
 from cosmosdb_client import CosmosDbClient
 
 
@@ -113,6 +113,16 @@ def delete(activity_id: str):
     flash('Activity deleted.')
     
     return redirect(url_for('index'))
+
+@app.route('/health')
+def health():
+    """Liveness and readiness probe: reports whether the Cosmos DB container is reachable."""
+    try:
+        get_cosmos().ping()
+        return jsonify({"status": "ok"})
+    except Exception as ex:
+        logger.warning("Health check failed: %s", ex)
+        return jsonify({"status": "unavailable"}), 503
 
 if __name__ == '__main__':
     app.run(debug=True)

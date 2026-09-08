@@ -23,6 +23,11 @@ class CosmosDbClient:
             offer_throughput=400
         )
 
+    def ping(self):
+        """Read the container's properties: the cheapest round trip proving the account is reachable."""
+        self.ensure_initialized()
+        return self.container.read()
+
     @classmethod
     def from_env(cls):
         return cls(

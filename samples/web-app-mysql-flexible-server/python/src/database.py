@@ -111,6 +111,16 @@ class MySQLClient:
             kwargs["ssl"] = ssl_ctx
         return pymysql.connect(**kwargs)
 
+    def ping(self) -> None:
+        """Open a connection and run SELECT 1; raises when the server is unreachable."""
+        conn = self._connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        finally:
+            conn.close()
+
     def init_schema(self, retries: int = 30, delay: float = 2.0) -> None:
         """Wait for MySQL to accept connections, then create the activities table."""
         last_err: Exception | None = None
