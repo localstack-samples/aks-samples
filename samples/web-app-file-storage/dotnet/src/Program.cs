@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using VacationPlanner.Services;
@@ -37,6 +38,24 @@ if (string.IsNullOrEmpty(secretKey))
 {
     app.Logger.LogWarning("SECRET_KEY is not set: antiforgery tokens and flash messages are only valid on this replica.");
 }
+
+// One log line per request, the equivalent of the access log the Python image produces (its gunicorn
+// command passes --access-logfile -). Kubernetes probes show up here too, exactly as they do for Python.
+var requestLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("VacationPlanner.Requests");
+app.Use(
+    async (context, next) =>
+    {
+        var started = Stopwatch.GetTimestamp();
+        await next();
+        requestLogger.LogInformation(
+            "{Method} {Path} -> {StatusCode} in {Elapsed:0.0}ms",
+            context.Request.Method,
+            context.Request.Path,
+            context.Response.StatusCode,
+            Stopwatch.GetElapsedTime(started).TotalMilliseconds
+        );
+    }
+);
 
 app.UseStaticFiles();
 app.MapRazorPages();

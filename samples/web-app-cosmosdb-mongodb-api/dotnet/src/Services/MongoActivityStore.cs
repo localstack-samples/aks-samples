@@ -1,4 +1,5 @@
 using MongoDB.Bson;
+using MongoDB.Bson.IO;
 using MongoDB.Driver;
 using VacationPlanner.Models;
 
@@ -11,6 +12,9 @@ public sealed class MongoActivityStore : IActivityStore
     private readonly IMongoCollection<BsonDocument> _collection;
     private readonly MongoOptions _options;
     private readonly ILogger<MongoActivityStore> _logger;
+
+    /// <summary>Documents are logged indented, like the Python sample's <c>json.dumps(indent=3)</c> output.</summary>
+    private static readonly JsonWriterSettings Indented = new() { Indent = true };
 
     public MongoActivityStore(MongoOptions options, ILogger<MongoActivityStore> logger)
     {
@@ -45,6 +49,12 @@ public sealed class MongoActivityStore : IActivityStore
     {
         var filter = Builders<BsonDocument>.Filter.Eq("username", _options.Username);
         var documents = await _collection.Find(filter).ToListAsync(cancellationToken);
+        _logger.LogInformation(
+            "Retrieved {Count} document(s) from collection '{Collection}': {Documents}",
+            documents.Count,
+            _options.CollectionName,
+            documents.ToJson(Indented)
+        );
         return documents.Select(d => new Activity(d["_id"].AsString, d["activity"].AsString)).ToList();
     }
 
@@ -58,6 +68,11 @@ public sealed class MongoActivityStore : IActivityStore
             ["timestamp"] = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.ffffff"),
         };
         await _collection.InsertOneAsync(document, cancellationToken: cancellationToken);
+        _logger.LogInformation(
+            "Inserted document into collection '{Collection}': {Document}",
+            _options.CollectionName,
+            document.ToJson(Indented)
+        );
         return true;
     }
 
@@ -68,17 +83,24 @@ public sealed class MongoActivityStore : IActivityStore
             Builders<BsonDocument>.Filter.Eq("_id", id),
             Builders<BsonDocument>.Update.Set("activity", text),
             cancellationToken: cancellationToken);
+        _logger.LogInformation(
+            "Updated {Count} document(s) with id {Id} in collection '{Collection}'",
+            result.ModifiedCount,
+            id,
+            _options.CollectionName
+        );
         return result.ModifiedCount > 0;
     }
 
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken)
     {
         var result = await _collection.DeleteOneAsync(Builders<BsonDocument>.Filter.Eq("_id", id), cancellationToken);
-        if (result.DeletedCount == 0)
-        {
-            _logger.LogInformation("Document '{Id}' did not exist: already deleted.", id);
-        }
-
+        _logger.LogInformation(
+            "Deleted {Count} document(s) with id {Id} from collection '{Collection}'",
+            result.DeletedCount,
+            id,
+            _options.CollectionName
+        );
         return true;
     }
 

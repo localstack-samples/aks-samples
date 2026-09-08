@@ -47,6 +47,12 @@ public sealed class CosmosActivityStore : IActivityStore
             }
         }
 
+        _logger.LogInformation(
+            "Retrieved {Count} item(s) for user: {Username} from container '{Container}'",
+            activities.Count,
+            _options.Username,
+            _options.ContainerName
+        );
         return activities;
     }
 
@@ -60,6 +66,12 @@ public sealed class CosmosActivityStore : IActivityStore
             Timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.ffffff"),
         };
         await Container.CreateItemAsync(document, new PartitionKey(_options.Username), cancellationToken: cancellationToken);
+        _logger.LogInformation(
+            "Created item {Id} in container '{Container}': {Activity}",
+            document.Id,
+            _options.ContainerName,
+            text
+        );
         return true;
     }
 
@@ -71,6 +83,7 @@ public sealed class CosmosActivityStore : IActivityStore
             var item = await Container.ReadItemAsync<ActivityDocument>(id, new PartitionKey(_options.Username), cancellationToken: cancellationToken);
             item.Resource.Activity = text;
             await Container.ReplaceItemAsync(item.Resource, id, new PartitionKey(_options.Username), cancellationToken: cancellationToken);
+            _logger.LogInformation("Updated item {Id} in container '{Container}'", id, _options.ContainerName);
         }
         catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
@@ -84,6 +97,7 @@ public sealed class CosmosActivityStore : IActivityStore
     {
         try
         {
+            _logger.LogInformation("Deleting item {Id} from container '{Container}'", id, _options.ContainerName);
             await Container.DeleteItemAsync<ActivityDocument>(id, new PartitionKey(_options.Username), cancellationToken: cancellationToken);
             return true;
         }

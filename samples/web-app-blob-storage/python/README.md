@@ -66,3 +66,11 @@ The app also exposes `GET /health`, the endpoint the liveness and readiness prob
 ```bash
 curl http://localhost:8080/health
 ```
+
+## Logs
+
+The app logs one line per request — gunicorn writes an access log line for every call, the probes included, because its command passes `--access-logfile -` — plus one line per blob read, uploaded or deleted and one line for every activity added, updated or deleted. The store operations are printed to stdout, so `kubectl logs` shows them interleaved with the access log. The [.NET version](../dotnet/README.md) writes the same trace, timestamped.
+
+```bash
+kubectl logs deployment/vacation-planner-blob -n vacation-planner-blob --tail=50
+```

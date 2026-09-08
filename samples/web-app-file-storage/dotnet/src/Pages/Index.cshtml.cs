@@ -5,7 +5,7 @@ using VacationPlanner.Services;
 
 namespace VacationPlanner.Pages;
 
-public class IndexModel(IActivityStore store, FileStorageOptions options) : PageModel
+public class IndexModel(IActivityStore store, FileStorageOptions options, ILogger<IndexModel> logger) : PageModel
 {
     public IReadOnlyList<Activity> Activities { get; private set; } = [];
 
@@ -34,15 +34,27 @@ public class IndexModel(IActivityStore store, FileStorageOptions options) : Page
         {
             if (!string.IsNullOrEmpty(id))
             {
-                TempData["Flash"] = await store.UpdateAsync(id, text, cancellationToken)
-                    ? "Activity updated successfully."
-                    : "Failed to update the activity on the file share.";
+                if (await store.UpdateAsync(id, text, cancellationToken))
+                {
+                    logger.LogInformation("Activity updated: {Id}", id);
+                    TempData["Flash"] = "Activity updated successfully.";
+                }
+                else
+                {
+                    TempData["Flash"] = "Failed to update the activity on the file share.";
+                }
             }
             else
             {
-                TempData["Flash"] = await store.AddAsync(text, cancellationToken)
-                    ? "Activity added successfully."
-                    : "Failed to add the activity to the file share.";
+                if (await store.AddAsync(text, cancellationToken))
+                {
+                    logger.LogInformation("Activity added: {Activity}", text);
+                    TempData["Flash"] = "Activity added successfully.";
+                }
+                else
+                {
+                    TempData["Flash"] = "Failed to add the activity to the file share.";
+                }
             }
         }
 

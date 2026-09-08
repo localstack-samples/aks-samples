@@ -66,3 +66,11 @@ The app also exposes `GET /health`, the endpoint the liveness and readiness prob
 ```bash
 curl http://localhost:8080/health
 ```
+
+## Logs
+
+The app logs one line per request — the `VacationPlanner.Requests` middleware is the equivalent of the gunicorn access log of the [Python version](../python/README.md), and it covers the probes too — plus one line per blob read, uploaded or deleted and one line for every activity added, updated or deleted. [`src/appsettings.json`](src/appsettings.json) keeps every entry on a single timestamped line and holds the framework categories at warning level, so the request and store lines stand out.
+
+```bash
+kubectl logs deployment/vacation-planner-blob -n vacation-planner-blob --tail=50
+```

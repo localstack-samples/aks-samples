@@ -111,6 +111,14 @@ The app also exposes `GET /health`, the endpoint the liveness and readiness prob
 curl http://localhost:8080/health
 ```
 
+## Logs
+
+The app logs one line per request — gunicorn writes an access log line for every call, the probes included, because its command passes `--access-logfile -` — plus one line per activity file read, written or deleted and one line for every activity added, updated or deleted. The store operations are printed to stdout, so `kubectl logs` shows them interleaved with the access log. The [.NET version](../dotnet/README.md) writes the same trace, timestamped.
+
+```bash
+kubectl logs deployment/vacation-planner-file -n vacation-planner-file --tail=50
+```
+
 ## Looking at the file share
 
 Every activity is one UTF-8 text file named `YYYY-MM-DD-HH-MM-SS-activity.txt`. From inside the cluster, on any of the three replicas and for any of the four combinations:

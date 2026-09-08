@@ -111,6 +111,14 @@ The app also exposes `GET /health`, the endpoint the liveness and readiness prob
 curl http://localhost:8080/health
 ```
 
+## Logs
+
+The app logs one line per request — the `VacationPlanner.Requests` middleware is the equivalent of the gunicorn access log of the [Python version](../python/README.md), and it covers the probes too — plus one line per activity file read, written or deleted and one line for every activity added, updated or deleted. [`src/appsettings.json`](src/appsettings.json) keeps every entry on a single timestamped line and holds the framework categories at warning level, so the request and store lines stand out.
+
+```bash
+kubectl logs deployment/vacation-planner-file -n vacation-planner-file --tail=50
+```
+
 ## Looking at the file share
 
 Every activity is one UTF-8 text file named `YYYY-MM-DD-HH-MM-SS-activity.txt`. From inside the cluster, on any of the three replicas and for any of the four combinations:

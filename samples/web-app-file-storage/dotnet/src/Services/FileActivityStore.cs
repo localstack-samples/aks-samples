@@ -44,10 +44,12 @@ public sealed class FileActivityStore(FileStorageOptions options, ILogger<FileAc
             var path = Path.Combine(_directory, name);
             if (File.Exists(path))
             {
+                logger.LogInformation("Found activity file '{Name}' with size {Size} bytes", name, new FileInfo(path).Length);
                 activities.Add(new Activity(name, File.ReadAllText(path)));
             }
         }
 
+        logger.LogInformation("Retrieved {Count} activity file(s) from directory '{Directory}'", activities.Count, _directory);
         return Task.FromResult<IReadOnlyList<Activity>>(activities);
     }
 
@@ -85,6 +87,7 @@ public sealed class FileActivityStore(FileStorageOptions options, ILogger<FileAc
                 return Task.FromResult(true);
             }
 
+            logger.LogInformation("Deleting activity file '{Name}' from directory '{Directory}'.", id, _directory);
             File.Delete(path);
             logger.LogInformation("Activity file '{Name}' deleted successfully.", id);
             return Task.FromResult(true);
@@ -127,6 +130,7 @@ public sealed class FileActivityStore(FileStorageOptions options, ILogger<FileAc
 
         try
         {
+            logger.LogInformation("Writing activity file '{Name}' in directory '{Directory}'.", name, _directory);
             File.WriteAllText(Path.Combine(_directory, name), text);
             logger.LogInformation("Activity file '{Name}' written successfully.", name);
             return true;

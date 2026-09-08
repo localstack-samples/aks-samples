@@ -70,3 +70,11 @@ The app also exposes `GET /health`, the endpoint the liveness and readiness prob
 ```bash
 curl http://localhost:8080/health
 ```
+
+## Logs
+
+The app logs one line per request — gunicorn writes an access log line for every call, the probes included, because its command passes `--access-logfile -` — plus one line per database read and write and one line for every activity added, updated or deleted. Every entry carries a timestamp, the logger name and the level; the Azure SDK and `urllib3` stay at warning level. The [.NET version](../dotnet/README.md) writes the same trace.
+
+```bash
+kubectl logs deployment/vacation-planner-postgres -n vacation-planner-postgres --tail=50
+```
