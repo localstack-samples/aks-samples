@@ -61,7 +61,7 @@ cd scripts
 By default the app is exposed through a `ClusterIP` service, which is only reachable from inside the cluster. Port-forward it to a local port to open it from your machine:
 
 ```bash
-kubectl port-forward service/vacation-planner-blob 8080:80 -n vacation-planner-blob
+kubectl port-forward service/vacation-planner-identity 8080:80 -n vacation-planner-identity
 ```
 
 Then browse to [http://localhost:8080](http://localhost:8080). Alternatively, use a tool such as [k9s](https://k9scli.io/) to start the port-forward interactively.
@@ -79,5 +79,5 @@ If you deployed the Gateway path (`DEPLOY_GATEWAY="true"`), the app is instead r
 The app logs one line per request — gunicorn writes an access log line for every call, the probes included, because its command passes `--access-logfile -` — plus one line per blob read, uploaded or deleted and one line for every activity added, updated or deleted. The store operations are printed to stdout, so `kubectl logs` shows them interleaved with the access log. The [.NET version](../dotnet/README.md) writes the same trace, timestamped.
 
 ```bash
-kubectl logs deployment/vacation-planner-blob -n vacation-planner-blob --tail=50
+kubectl logs deployment/vacation-planner-identity -n vacation-planner-identity --tail=50
 ```

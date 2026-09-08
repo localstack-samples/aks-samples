@@ -3,8 +3,8 @@ kind: Gateway
 metadata:
   annotations:
     gateway.networking.k8s.io/generator: ingress2gateway-1.1.0
-    cert-manager.io/issuer: vacation-planner-blob-issuer
-  name: vacation-planner-blob
+    cert-manager.io/issuer: vacation-planner-identity-issuer
+  name: vacation-planner-identity
 spec:
   gatewayClassName: nginx
   listeners:
@@ -27,4 +27,4 @@ spec:
       certificateRefs:
       - group: ""
         kind: Secret
-        name: vacation-planner-blob-tls-secret
+        name: vacation-planner-identity-tls-secret

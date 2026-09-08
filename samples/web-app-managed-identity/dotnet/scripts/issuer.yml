@@ -1,24 +1,24 @@
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: vacation-planner-blob-issuer
-  namespace: vacation-planner-blob
+  name: vacation-planner-identity-issuer
+  namespace: vacation-planner-identity
 spec:
   acme:
     # Registration address for the Let's Encrypt account: expiry notices go here
     email: paolo.salvatori@localstack.cloud
     privateKeySecretRef:
-      name: vacation-planner-blob-issuer
+      name: vacation-planner-identity-issuer
     server: https://acme-v02.api.letsencrypt.org/directory
     solvers:
     - http01:
         gatewayHTTPRoute:
           parentRefs:
-          - name: vacation-planner-blob
-            namespace: vacation-planner-blob
+          - name: vacation-planner-identity
+            namespace: vacation-planner-identity
             kind: Gateway
             group: gateway.networking.k8s.io
-            sectionName: vacation-planner-blob-http
+            sectionName: vacation-planner-identity-http
           podTemplate:
             spec:
               nodeSelector:

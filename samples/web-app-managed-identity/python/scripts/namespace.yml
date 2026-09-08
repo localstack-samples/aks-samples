@@ -1,4 +1,4 @@
 kind: Namespace
 apiVersion: v1
 metadata:
-  name: vacation-planner-blob
+  name: vacation-planner-identity

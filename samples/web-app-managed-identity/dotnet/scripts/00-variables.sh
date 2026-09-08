@@ -25,17 +25,17 @@ STORAGE_ACCOUNT_NAME="${PREFIX}storage${SUFFIX}"
 CONTAINER_NAME='activities'
 
 # Docker Image
-IMAGE_NAME="vacation-planner-blob-dotnet"
+IMAGE_NAME="vacation-planner-identity-dotnet"
 IMAGE_PULL_POLICY="Always"
 IMAGE_TAG="v1"
 PORT="8080"
 
 # Kubernetes
-NAME="vacation-planner-blob"
-NAMESPACE="vacation-planner-blob"
-DEPLOYMENT_NAME="vacation-planner-blob"
-SERVICE_NAME="vacation-planner-blob"
-CONFIGMAP_NAME="vacation-planner-blob-config"
-SECRET_NAME="vacation-planner-blob-secrets"
-SERVICE_ACCOUNT_NAME="vacation-planner-blob-sa"
+NAME="vacation-planner-identity"
+NAMESPACE="vacation-planner-identity"
+DEPLOYMENT_NAME="vacation-planner-identity"
+SERVICE_NAME="vacation-planner-identity"
+CONFIGMAP_NAME="vacation-planner-identity-config"
+SECRET_NAME="vacation-planner-identity-secrets"
+SERVICE_ACCOUNT_NAME="vacation-planner-identity-sa"
 DEPLOY_GATEWAY="false"

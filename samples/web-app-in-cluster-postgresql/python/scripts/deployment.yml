@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vacation-planner-postgres
-  namespace: vacation-planner-postgres
+  name: vacation-planner-postgres-in-cluster
+  namespace: vacation-planner-postgres-in-cluster
   labels:
-    app: vacation-planner-postgres
+    app: vacation-planner-postgres-in-cluster
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: vacation-planner-postgres
+      app: vacation-planner-postgres-in-cluster
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -19,13 +19,13 @@ spec:
   template:
     metadata:
       labels:
-        app: vacation-planner-postgres
+        app: vacation-planner-postgres-in-cluster
     spec:
       nodeSelector:
         kubernetes.io/os: linux
       containers:
-        - name: vacation-planner-postgres
-          image: <your-registry>.azurecr.io/vacation-planner-postgres:v1
+        - name: vacation-planner-postgres-in-cluster
+          image: <your-registry>.azurecr.io/vacation-planner-postgres-in-cluster:v1
           imagePullPolicy: Always
           ports:
             - name: http
@@ -34,42 +34,42 @@ spec:
             - name: PG_HOST
               valueFrom:
                 configMapKeyRef:
-                  name: vacation-planner-postgres-config
+                  name: vacation-planner-postgres-in-cluster-config
                   key: PG_HOST
             - name: PG_PORT
               valueFrom:
                 configMapKeyRef:
-                  name: vacation-planner-postgres-config
+                  name: vacation-planner-postgres-in-cluster-config
                   key: PG_PORT
             - name: PG_DATABASE
               valueFrom:
                 configMapKeyRef:
-                  name: vacation-planner-postgres-config
+                  name: vacation-planner-postgres-in-cluster-config
                   key: PG_DATABASE
             - name: PG_USER
               valueFrom:
                 configMapKeyRef:
-                  name: vacation-planner-postgres-config
+                  name: vacation-planner-postgres-in-cluster-config
                   key: PG_USER
             - name: LOGIN_NAME
               valueFrom:
                 configMapKeyRef:
-                  name: vacation-planner-postgres-config
+                  name: vacation-planner-postgres-in-cluster-config
                   key: LOGIN_NAME
             - name: DEBUG
               valueFrom:
                 configMapKeyRef:
-                  name: vacation-planner-postgres-config
+                  name: vacation-planner-postgres-in-cluster-config
                   key: DEBUG
             - name: PG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: vacation-planner-postgres-secrets
+                  name: vacation-planner-postgres-in-cluster-secrets
                   key: PG_PASSWORD
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: vacation-planner-postgres-secrets
+                  name: vacation-planner-postgres-in-cluster-secrets
                   key: SECRET_KEY
           resources:
             requests:

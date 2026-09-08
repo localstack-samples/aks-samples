@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: pg-postgres-secret
-  namespace: vacation-planner-postgres
+  namespace: vacation-planner-postgres-in-cluster
 type: Opaque
 stringData:
   POSTGRES_PASSWORD: "SuperStrongPass123"
@@ -12,7 +12,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pg-postgres-scripts
-  namespace: vacation-planner-postgres
+  namespace: vacation-planner-postgres-in-cluster
 data:
   # Runs only on the primary (pod-0): the official entrypoint executes
   # everything in /docker-entrypoint-initdb.d only when it runs initdb,
@@ -74,7 +74,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: pg-postgres-hl
-  namespace: vacation-planner-postgres
+  namespace: vacation-planner-postgres-in-cluster
   labels:
     app: pg-postgres
 spec:
@@ -91,7 +91,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: pg-postgres-primary
-  namespace: vacation-planner-postgres
+  namespace: vacation-planner-postgres-in-cluster
   labels:
     app: pg-postgres
     role: primary
@@ -110,7 +110,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: pg-postgres-read
-  namespace: vacation-planner-postgres
+  namespace: vacation-planner-postgres-in-cluster
   labels:
     app: pg-postgres
     role: read
@@ -127,7 +127,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: pg-postgres
-  namespace: vacation-planner-postgres
+  namespace: vacation-planner-postgres-in-cluster
 spec:
   serviceName: pg-postgres-hl
   replicas: 3

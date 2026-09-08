@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vacation-planner-blob
-  namespace: vacation-planner-blob
+  name: vacation-planner-identity
+  namespace: vacation-planner-identity
   labels:
-    app: vacation-planner-blob
+    app: vacation-planner-identity
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: vacation-planner-blob
+      app: vacation-planner-identity
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -19,28 +19,28 @@ spec:
   template:
     metadata:
       labels:
-        app: vacation-planner-blob
+        app: vacation-planner-identity
         azure.workload.identity/use: "true"
     spec:
-      serviceAccountName: vacation-planner-blob-sa
+      serviceAccountName: vacation-planner-identity-sa
       topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: topology.kubernetes.io/zone
         whenUnsatisfiable: ScheduleAnyway
         labelSelector:
           matchLabels:
-            app: vacation-planner-blob
+            app: vacation-planner-identity
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: ScheduleAnyway
         labelSelector:
           matchLabels:
-            app: vacation-planner-blob
+            app: vacation-planner-identity
       nodeSelector:
         kubernetes.io/os: linux
       containers:
-        - name: vacation-planner-blob
-          image: <your-registry>.azurecr.io/vacation-planner-blob-dotnet:v1
+        - name: vacation-planner-identity
+          image: <your-registry>.azurecr.io/vacation-planner-identity-dotnet:v1
           imagePullPolicy: Always
           ports:
             - name: http
@@ -49,17 +49,17 @@ spec:
             - name: CONTAINER_NAME
               valueFrom:
                 configMapKeyRef:
-                  name: vacation-planner-blob-config
+                  name: vacation-planner-identity-config
                   key: CONTAINER_NAME
             - name: AZURE_STORAGE_ACCOUNT_URL
               valueFrom:
                 configMapKeyRef:
-                  name: vacation-planner-blob-config
+                  name: vacation-planner-identity-config
                   key: AZURE_STORAGE_ACCOUNT_URL
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: vacation-planner-blob-secrets
+                  name: vacation-planner-identity-secrets
                   key: SECRET_KEY
           resources:
             requests:

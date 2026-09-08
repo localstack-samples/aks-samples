@@ -92,15 +92,33 @@ echo "Service Account YAML manifest"
 echo "-----------------------------"
 kubectl get sa $SERVICE_ACCOUNT_NAME -n $NAMESPACE -o yaml
 
-# Check if the federated identity credential already exists
+# Check whether the federated identity credential already exists and still points at this namespace and
+# service account: both are part of its subject, so a credential left behind by a deployment in another
+# namespace (or with another service account) has to be recreated, or the token exchange fails and every
+# pod crashes at startup with an authentication error.
 echo "Checking if [$FEDERATED_IDENTITY_NAME] federated identity credential actually exists in the [$RESOURCE_GROUP_NAME] resource group..."
 
-az identity federated-credential show \
+EXPECTED_SUBJECT="system:serviceaccount:$NAMESPACE:$SERVICE_ACCOUNT_NAME"
+CURRENT_SUBJECT="$(az identity federated-credential show \
   --name $FEDERATED_IDENTITY_NAME \
   --resource-group $RESOURCE_GROUP_NAME \
-  --identity-name $MANAGED_IDENTITY_NAME &>/dev/null
+  --identity-name $MANAGED_IDENTITY_NAME \
+  --query subject \
+  --output tsv 2>/dev/null)"
 
-if [[ $? != 0 ]]; then
+if [[ -n $CURRENT_SUBJECT && $CURRENT_SUBJECT != $EXPECTED_SUBJECT ]]; then
+  echo "[$FEDERATED_IDENTITY_NAME] federated identity credential points at [$CURRENT_SUBJECT] instead of [$EXPECTED_SUBJECT]: deleting it"
+
+  az identity federated-credential delete \
+    --name $FEDERATED_IDENTITY_NAME \
+    --identity-name $MANAGED_IDENTITY_NAME \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --yes 1>/dev/null
+
+  CURRENT_SUBJECT=""
+fi
+
+if [[ -z $CURRENT_SUBJECT ]]; then
   echo "No [$FEDERATED_IDENTITY_NAME] federated identity credential actually exists in the [$RESOURCE_GROUP_NAME] resource group"
 
   # Get the OIDC Issuer URL
@@ -124,7 +142,7 @@ if [[ $? != 0 ]]; then
     --identity-name $MANAGED_IDENTITY_NAME \
     --resource-group $RESOURCE_GROUP_NAME \
     --issuer $OIDC_ISSUER_URL \
-    --subject system:serviceaccount:$NAMESPACE:$SERVICE_ACCOUNT_NAME 1>/dev/null
+    --subject $EXPECTED_SUBJECT 1>/dev/null
 
   if [[ $? == 0 ]]; then
     echo "[$FEDERATED_IDENTITY_NAME] federated identity credential successfully created in the [$RESOURCE_GROUP_NAME] resource group"
@@ -133,7 +151,7 @@ if [[ $? != 0 ]]; then
     exit
   fi
 else
-  echo "[$FEDERATED_IDENTITY_NAME] federated identity credential already exists in the [$RESOURCE_GROUP_NAME] resource group"
+  echo "[$FEDERATED_IDENTITY_NAME] federated identity credential already exists in the [$RESOURCE_GROUP_NAME] resource group and points at [$EXPECTED_SUBJECT]"
 fi
 
 # Create secret with the storage connection string, client secret and SECRET_KEY

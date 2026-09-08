@@ -3,17 +3,17 @@ kind: HTTPRoute
 metadata:
   annotations:
     gateway.networking.k8s.io/generator: ingress2gateway-1.1.0
-  name: vacation-planner-blob
+  name: vacation-planner-identity
 spec:
   hostnames:
   - planner.local.babosbird.com
   parentRefs:
-  - name: vacation-planner-blob
+  - name: vacation-planner-identity
     port: 443
     sectionName: https
   rules:
   - backendRefs:
-    - name: vacation-planner-blob
+    - name: vacation-planner-identity
       port: 80
     matches:
     - path:

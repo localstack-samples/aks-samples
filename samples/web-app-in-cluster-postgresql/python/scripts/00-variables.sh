@@ -38,14 +38,14 @@ PG_LOCAL_PORT='5432'
 LOGIN_NAME='paolo'
 
 # Docker Image
-IMAGE_NAME="vacation-planner-postgres"
+IMAGE_NAME="vacation-planner-postgres-in-cluster"
 IMAGE_PULL_POLICY="Always"
 IMAGE_TAG="v1"
 PORT="8080"
 
 # Kubernetes
-NAMESPACE="vacation-planner-postgres"
-DEPLOYMENT_NAME="vacation-planner-postgres"
-SERVICE_NAME="vacation-planner-postgres"
-CONFIGMAP_NAME="vacation-planner-postgres-config"
-K8S_SECRET_NAME="vacation-planner-postgres-secrets"
+NAMESPACE="vacation-planner-postgres-in-cluster"
+DEPLOYMENT_NAME="vacation-planner-postgres-in-cluster"
+SERVICE_NAME="vacation-planner-postgres-in-cluster"
+CONFIGMAP_NAME="vacation-planner-postgres-in-cluster-config"
+K8S_SECRET_NAME="vacation-planner-postgres-in-cluster-secrets"

@@ -60,7 +60,7 @@ Optionally, **after** `05-deploy-app.sh` has deployed and provisioned the databa
 The app is exposed through a `ClusterIP` service, which is only reachable from inside the cluster. Port-forward it to a local port to open it from your machine:
 
 ```bash
-kubectl port-forward service/vacation-planner-postgres 8080:80 -n vacation-planner-postgres
+kubectl port-forward service/vacation-planner-postgres-in-cluster 8080:80 -n vacation-planner-postgres-in-cluster
 ```
 
 Then browse to [http://localhost:8080](http://localhost:8080). Alternatively, use a tool such as [k9s](https://k9scli.io/) to start the port-forward interactively.
@@ -76,5 +76,5 @@ curl http://localhost:8080/health
 The app logs one line per request — gunicorn writes an access log line for every call, the probes included, because its command passes `--access-logfile -` — plus one line per database read and write and one line for every activity added, updated or deleted. Every entry carries a timestamp, the logger name and the level; the Azure SDK and `urllib3` stay at warning level. The [.NET version](../dotnet/README.md) writes the same trace.
 
 ```bash
-kubectl logs deployment/vacation-planner-postgres -n vacation-planner-postgres --tail=50
+kubectl logs deployment/vacation-planner-postgres-in-cluster -n vacation-planner-postgres-in-cluster --tail=50
 ```

@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: vacation-planner-blob-config
-  namespace: vacation-planner-blob
+  name: vacation-planner-identity-config
+  namespace: vacation-planner-identity
   labels:
-    app: vacation-planner-blob
+    app: vacation-planner-identity
 data:
   CONTAINER_NAME: "activities"
   AZURE_CLIENT_ID: ""
