@@ -1,0 +1,6 @@
+*.sh text eol=lf
+*.yml text eol=lf
+*.cs text eol=lf
+*.csproj text eol=lf
+*.cshtml text eol=lf
+Dockerfile text eol=lf

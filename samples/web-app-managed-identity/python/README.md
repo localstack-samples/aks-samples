@@ -1,19 +1,21 @@
 # Vacation Planner: Azure Blob Storage with Microsoft Entra Workload ID
 
+> A .NET version of this sample lives in [../dotnet](../dotnet/README.md).
+
 This sample demonstrates a Python Flask single-page web application called *Vacation Planner* hosted on an [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/what-is-aks) cluster in the cloud on Azure or locally in the LocalStack emulator for Azure. The app runs in a dedicated namespace and stores activity data in the `activities` container of an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) account.
 
-Unlike the [`web-app-blob-storage`](../web-app-blob-storage/) sample, which uses a connection string, this sample authenticates to the storage account without any secret, using [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview). A [user-assigned managed identity](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) is federated with a Kubernetes service account, so the pod obtains Microsoft Entra tokens through the cluster's OIDC issuer and accesses the storage account with its RBAC role assignment.
+Unlike the [`web-app-blob-storage`](../../web-app-blob-storage/python/) sample, which uses a connection string, this sample authenticates to the storage account without any secret, using [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview). A [user-assigned managed identity](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) is federated with a Kubernetes service account, so the pod obtains Microsoft Entra tokens through the cluster's OIDC issuer and accesses the storage account with its RBAC role assignment.
 
 Optionally, when `DEPLOY_GATEWAY="true"` in [`00-variables.sh`](scripts/00-variables.sh), the sample also exposes the app on a public hostname through the [Gateway API](https://gateway-api.sigs.k8s.io/), with an A record created in an [Azure DNS](https://learn.microsoft.com/en-us/azure/dns/dns-overview) zone and a TLS certificate issued via [cert-manager](https://cert-manager.io/).
 
 Before installing the sample, make sure to create an [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/what-is-aks) cluster by using one of the following scripts:
 
-- [scripts/01-system-assigned-managed-identity.sh](../../scripts/01-system-assigned-managed-identity.sh): creates the cluster using a system-assigned managed identity as its cluster identity.
-- [scripts/01-user-assigned-managed-identity.sh](../../scripts/01-user-assigned-managed-identity.sh): creates the cluster using a user-assigned managed identity as its cluster identity.
+- [scripts/01-system-assigned-managed-identity.sh](../../../scripts/01-system-assigned-managed-identity.sh): creates the cluster using a system-assigned managed identity as its cluster identity.
+- [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh): creates the cluster using a user-assigned managed identity as its cluster identity.
 
 Both scripts enable the OIDC issuer and workload identity that this sample relies on. If you enable the Gateway path, also install the [Gateway API](https://gateway-api.sigs.k8s.io/) and [cert-manager](https://cert-manager.io/) add-ons from the root `scripts/` folder. All commands below are run from this sample's `scripts/` folder.
 
-> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../README.md#run-against-localstack) for the full setup.
 
 ## Architecture
 

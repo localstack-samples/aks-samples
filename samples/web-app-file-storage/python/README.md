@@ -1,5 +1,7 @@
 # Vacation Planner: Azure Files
 
+> A .NET version of this sample lives in [../dotnet](../dotnet/README.md).
+
 This sample demonstrates a Python Flask single-page web application called *Vacation Planner* hosted on an [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/what-is-aks) cluster in the cloud on Azure or locally in the LocalStack emulator for Azure. The app runs in a dedicated namespace and stores each activity as a text file on an [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction) share, mounted into every pod by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi).
 
 Unlike every other sample in this repository, the app uses **no Azure SDK at all**: no client library, no connection string, no account key, not a single line of authentication code. It calls `open()`, `os.listdir()` and `os.remove()` on a directory, and the CSI driver turns that directory into an Azure file share. That is the point of the sample, and it is what makes Azure Files the shortest path to persistence for an application that already speaks the file system.
@@ -8,14 +10,14 @@ The three replicas of the deployment mount the same share at the same time (`Rea
 
 Before installing the sample, make sure to create an [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/what-is-aks) cluster by using one of the following scripts:
 
-- [scripts/01-system-assigned-managed-identity.sh](../../scripts/01-system-assigned-managed-identity.sh): creates the cluster using a system-assigned managed identity as its cluster identity.
-- [scripts/01-user-assigned-managed-identity.sh](../../scripts/01-user-assigned-managed-identity.sh): creates the cluster using a user-assigned managed identity as its cluster identity.
+- [scripts/01-system-assigned-managed-identity.sh](../../../scripts/01-system-assigned-managed-identity.sh): creates the cluster using a system-assigned managed identity as its cluster identity.
+- [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh): creates the cluster using a user-assigned managed identity as its cluster identity.
 
 Both scripts check that the Azure Files CSI driver and the CSI snapshot controller are enabled on the cluster, and enable the `Microsoft.Storage` service endpoint on the node subnets, which an NFS share requires. They print the cluster's `storageProfile` and its storage classes when they are done.
 
 All commands below are run from this sample's `scripts/` folder.
 
-> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../README.md#run-against-localstack) for the full setup.
+> **Running on LocalStack?** Install the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/) and run `lstk az start-interception` to route Azure CLI calls to the emulator. See [Run against LocalStack](../../../README.md#run-against-localstack) for the full setup.
 
 ## Architecture
 
