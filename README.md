@@ -12,6 +12,7 @@ It contains two kinds of content:
 - An [Azure subscription](https://azure.microsoft.com/free/) (for cloud deployments) or a running [LocalStack for Azure](https://docs.localstack.cloud/azure/) instance (for local deployments).
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) (`az`), authenticated with `az login`.
 - [Docker](https://docs.docker.com/get-docker/) to build and run the container images.
+- Optional: the [.NET SDK 10.0](https://dotnet.microsoft.com/en-us/download/dotnet/10.0), only needed to build or run the .NET version of the web app outside Docker (the Docker build uses the SDK image).
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) to manage the cluster.
 - [yq](https://github.com/mikefarah/yq), and (depending on the sample) `sqlcmd` or `psql` on the host machine.
 - An SSH key pair at `~/.ssh/id_rsa.pub` (used to provision the AKS node pools).
@@ -94,31 +95,40 @@ The [scripts/](scripts/) folder also contains optional add-on installers you can
 
 ## Samples
 
-Every sample deploys the same *Vacation Planner* web app, a small Python [Flask](https://flask.palletsprojects.com/) single-page application, and differs only in the Azure data service that persists the activity data behind it, listed in the table below. Keeping the application identical makes the comparison the point: what changes from one sample to the next is the data service, its provisioning, and how the app authenticates to it.
+Every sample deploys the same *Vacation Planner* web app and differs only in the Azure data service that persists the activity data behind it, listed in the table below. Keeping the application identical makes the comparison the point: what changes from one sample to the next is the data service, its provisioning, and how the app authenticates to it.
+
+The web app comes in two implementations with identical behaviour: a Python [Flask](https://flask.palletsprojects.com/) app and an [ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/) Razor Pages app on .NET 10, each in its own subfolder of the sample (`python/` and `dotnet/`). Both read the same environment variables, use the same Kubernetes names and share the data store, so deploying one version over the other simply rolls the Deployment to the other implementation; only the container image name differs (`vacation-planner-<store>` versus `vacation-planner-<store>-dotnet`).
 
 ![Vacation Planner](images/vacation-planner.png)
 
-To run any sample you must first create the AKS cluster with one of the two scripts above. Then pick a sample from the [samples/](samples/) folder and run the numbered scripts in its `samples/<sample>/scripts` folder in order. The web app source code for each sample lives in `samples/<sample>/src`.
+To run any sample you must first create the AKS cluster with one of the two scripts above. Then pick a sample and a language from the table below and run the numbered scripts in its `samples/<sample>/<language>/scripts` folder in order. The web app source code lives in `samples/<sample>/<language>/src`.
 
 | Sample | Description |
 | ------ | ----------- |
-| [web-app-sql-database](samples/web-app-sql-database/python/README.md) | Stores activities in an [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview), connecting with a SQL login over TDS. |
-| [web-app-mysql-flexible-server](samples/web-app-mysql-flexible-server/python/README.md) | Stores activities in an [Azure Database for MySQL flexible server](https://learn.microsoft.com/en-us/azure/mysql/flexible-server/overview). |
-| [web-app-postgresql-flexible-server](samples/web-app-postgresql-flexible-server/python/README.md) | Stores activities in an [Azure Database for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview). |
-| [web-app-in-cluster-postgresql](samples/web-app-in-cluster-postgresql/python/README.md) | Stores activities in an in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) (a primary with two streaming-replica standbys), instead of a managed Azure data service. |
-| [web-app-cosmosdb-mongodb-api](samples/web-app-cosmosdb-mongodb-api/python/README.md) | Stores activities in a collection of an [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/introduction) account. |
-| [web-app-cosmosdb-nosql-api](samples/web-app-cosmosdb-nosql-api/python/README.md) | Stores activities in a container of an [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/) account. |
-| [web-app-blob-storage](samples/web-app-blob-storage/python/README.md) | Stores activities in an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) container, using a connection string. |
-| [web-app-file-storage](samples/web-app-file-storage/python/README.md) | Stores activities as text files on an [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction) share mounted into the pods by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi), over either SMB or NFS, with either a pre-created share or one provisioned on demand. The only sample whose app uses no Azure SDK at all. |
-| [web-app-managed-identity](samples/web-app-managed-identity/python/README.md) | Stores activities in an Azure Blob Storage container, authenticating with [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) (federated credential plus workload identity) instead of a secret, and optionally exposes the app through the Gateway API with a managed TLS certificate. |
+| web-app-sql-database ([Python](samples/web-app-sql-database/python/README.md), [.NET](samples/web-app-sql-database/dotnet/README.md)) | Stores activities in an [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview), connecting with a SQL login over TDS. |
+| web-app-mysql-flexible-server ([Python](samples/web-app-mysql-flexible-server/python/README.md), [.NET](samples/web-app-mysql-flexible-server/dotnet/README.md)) | Stores activities in an [Azure Database for MySQL flexible server](https://learn.microsoft.com/en-us/azure/mysql/flexible-server/overview). |
+| web-app-postgresql-flexible-server ([Python](samples/web-app-postgresql-flexible-server/python/README.md), [.NET](samples/web-app-postgresql-flexible-server/dotnet/README.md)) | Stores activities in an [Azure Database for PostgreSQL flexible server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview). |
+| web-app-in-cluster-postgresql ([Python](samples/web-app-in-cluster-postgresql/python/README.md), [.NET](samples/web-app-in-cluster-postgresql/dotnet/README.md)) | Stores activities in an in-cluster [PostgreSQL](https://www.postgresql.org/) database deployed as a Kubernetes [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) (a primary with two streaming-replica standbys), instead of a managed Azure data service. |
+| web-app-cosmosdb-mongodb-api ([Python](samples/web-app-cosmosdb-mongodb-api/python/README.md), [.NET](samples/web-app-cosmosdb-mongodb-api/dotnet/README.md)) | Stores activities in a collection of an [Azure Cosmos DB for MongoDB](https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/introduction) account. |
+| web-app-cosmosdb-nosql-api ([Python](samples/web-app-cosmosdb-nosql-api/python/README.md), [.NET](samples/web-app-cosmosdb-nosql-api/dotnet/README.md)) | Stores activities in a container of an [Azure Cosmos DB for NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/) account. |
+| web-app-blob-storage ([Python](samples/web-app-blob-storage/python/README.md), [.NET](samples/web-app-blob-storage/dotnet/README.md)) | Stores activities in an [Azure Blob Storage](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction) container, using a connection string. |
+| web-app-file-storage ([Python](samples/web-app-file-storage/python/README.md), [.NET](samples/web-app-file-storage/dotnet/README.md)) | Stores activities as text files on an [Azure Files](https://learn.microsoft.com/en-us/azure/storage/files/storage-files-introduction) share mounted into the pods by the [Azure Files CSI driver](https://learn.microsoft.com/en-us/azure/aks/azure-files-csi), over either SMB or NFS, with either a pre-created share or one provisioned on demand. The only sample whose app uses no Azure SDK at all. |
+| web-app-managed-identity ([Python](samples/web-app-managed-identity/python/README.md), [.NET](samples/web-app-managed-identity/dotnet/README.md)) | Stores activities in an Azure Blob Storage container, authenticating with [Microsoft Entra Workload ID](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview) (federated credential plus workload identity) instead of a secret, and optionally exposes the app through the Gateway API with a managed TLS certificate. |
 
 Each sample folder follows the same layout:
 
 ```
 samples/<sample>/
-├── README.md       # sample-specific documentation
-├── scripts/        # numbered deployment scripts + Kubernetes manifests
-└── src/            # Flask web app source code
+├── python/
+│   ├── README.md   # documentation of the Python version
+│   ├── images/     # architecture diagram
+│   ├── scripts/    # numbered deployment scripts, Dockerfile and Kubernetes manifests
+│   └── src/        # Flask web app source code
+└── dotnet/
+    ├── README.md   # documentation of the .NET version
+    ├── images/     # architecture diagram
+    ├── scripts/    # numbered deployment scripts, Dockerfile and Kubernetes manifests
+    └── src/        # ASP.NET Core Razor Pages web app source code
 ```
 
 ### Accessing the Vacation Planner web app
@@ -131,6 +141,8 @@ kubectl port-forward service/<service> 8080:80 -n <namespace>
 ```
 
 Then browse to [http://localhost:8080](http://localhost:8080). The exact namespace and service name for each sample are documented in its own `README.md`.
+
+Both versions of the app also expose `GET /health`, the endpoint their Kubernetes liveness and readiness probes call: it returns `{"status": "ok"}` when the data service is reachable and `503` otherwise.
 
 Alternatively, you can use a terminal UI such as [k9s](https://k9scli.io/) to select the service and start a port-forward interactively (press `<shift-f>` on a selected service or pod).
 
