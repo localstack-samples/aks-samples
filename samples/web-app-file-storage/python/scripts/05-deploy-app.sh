@@ -36,7 +36,14 @@ else
 fi
 
 # Generate a stable Flask SECRET_KEY (sessions survive pod restarts)
-SECRET_KEY=$(openssl rand -hex 32)
+# Reuse the key already stored in the Secret, when there is one. A new key on every run would leave the
+# running pods signing with the old one, so their sessions, flash messages and antiforgery tokens break
+# across replicas until every pod has restarted.
+SECRET_KEY=$(kubectl get secret $SECRET_NAME --namespace $NAMESPACE --output jsonpath='{.data.SECRET_KEY}' 2>/dev/null | base64 --decode 2>/dev/null)
+
+if [[ -z $SECRET_KEY ]]; then
+	SECRET_KEY=$(openssl rand -hex 32)
+fi
 
 # Get the login server for the Azure Container Registry
 echo "Getting login server for Azure Container Registry [$ACR_NAME]..."

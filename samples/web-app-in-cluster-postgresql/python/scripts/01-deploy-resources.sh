@@ -54,8 +54,8 @@ else
 	echo "[$ACR_NAME] Azure Container Registry already exists."
 fi
 
-# The PostgreSQL database now runs in-cluster as a StatefulSet (statefulset.yml),
-# deployed by 05-deploy-app.sh. Database provisioning and test data are handled by
-# 06-create-test-data.sh. No Azure managed PostgreSQL resource is created here.
+# The PostgreSQL database now runs in-cluster as a StatefulSet (statefulset.yml). Both the StatefulSet and
+# the test data are handled by 05-deploy-app.sh, which waits for the primary and seeds the activities table.
+# No Azure managed PostgreSQL resource is created here.
 echo "Resource group and Azure Container Registry are ready."
-echo "Next: build (02) and push (04) the image, deploy the app + in-cluster PostgreSQL (05), then seed data (06)."
+echo "Next: build (02) and push (04) the image, then deploy the app + in-cluster PostgreSQL and seed it (05)."

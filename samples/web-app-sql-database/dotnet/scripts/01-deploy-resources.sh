@@ -204,7 +204,8 @@ sqlcmd -S "$SQL_SERVER_FQDN" \
 	-U "$DATABASE_USER_NAME" \
 	-P "$DATABASE_USER_PASSWORD" \
   -N -C \
-	-Q "INSERT INTO Activities (username, activity, timestamp) 
+	-Q "IF NOT EXISTS (SELECT 1 FROM Activities)
+			INSERT INTO Activities (username, activity, timestamp) 
 			VALUES 
       ('paolo', 'Visit the Leaning Tower in Pisa', GETDATE()),
       ('paolo', 'Explore Etruscan walls in Volterra', GETDATE()),
