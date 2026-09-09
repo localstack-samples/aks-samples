@@ -12,7 +12,7 @@ public sealed record SqlOptions(string Server, string Database, string? User, st
         var username = Environment.GetEnvironmentVariable("LOGIN_NAME") ?? "paolo";
         if (string.IsNullOrWhiteSpace(username))
         {
-            throw new InvalidOperationException("Username cannot be None or empty");
+            throw new InvalidOperationException("LOGIN_NAME is set to an empty value");
         }
 
         var server = Environment.GetEnvironmentVariable("SQL_SERVER");

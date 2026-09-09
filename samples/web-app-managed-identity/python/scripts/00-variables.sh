@@ -20,6 +20,10 @@ DNS_ZONE_RESOURCE_GROUP_NAME="dns-rg"
 DNS_ZONE_NAME="babosbird.com"
 SUBDOMAIN="planner.local"
 
+# Registration address of the Let's Encrypt account used by the Gateway TLS certificate: expiry notices
+# go here. Export ACME_EMAIL to use your own address.
+ACME_EMAIL="${ACME_EMAIL:-admin@example.com}"
+
 # Storage Account
 STORAGE_ACCOUNT_NAME="${PREFIX}storage${SUFFIX}"
 CONTAINER_NAME='activities'

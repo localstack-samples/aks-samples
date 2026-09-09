@@ -5,8 +5,9 @@ metadata:
   namespace: vacation-planner-identity
 spec:
   acme:
-    # Registration address for the Let's Encrypt account: expiry notices go here
-    email: paolo.salvatori@localstack.cloud
+    # Registration address for the Let's Encrypt account: expiry notices go here.
+    # 05-deploy-app.sh replaces this with $ACME_EMAIL from 00-variables.sh.
+    email: admin@example.com
     privateKeySecretRef:
       name: vacation-planner-identity-issuer
     server: https://acme-v02.api.letsencrypt.org/directory
@@ -18,7 +19,7 @@ spec:
             namespace: vacation-planner-identity
             kind: Gateway
             group: gateway.networking.k8s.io
-            sectionName: vacation-planner-identity-http
+            sectionName: http
           podTemplate:
             spec:
               nodeSelector:

@@ -8,7 +8,7 @@ public sealed record CosmosOptions(string Endpoint, string Key, string DatabaseN
         var username = Environment.GetEnvironmentVariable("LOGIN_NAME") ?? "alex";
         if (string.IsNullOrWhiteSpace(username))
         {
-            throw new InvalidOperationException("Username cannot be empty");
+            throw new InvalidOperationException("LOGIN_NAME is set to an empty value");
         }
 
         return new CosmosOptions(

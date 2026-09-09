@@ -15,7 +15,7 @@ public sealed record MongoOptions(string ConnectionString, string DatabaseName, 
         var username = Environment.GetEnvironmentVariable("LOGIN_NAME") ?? "paolo";
         if (string.IsNullOrWhiteSpace(username))
         {
-            throw new InvalidOperationException("Username cannot be None or empty");
+            throw new InvalidOperationException("LOGIN_NAME is set to an empty value");
         }
 
         return new MongoOptions(

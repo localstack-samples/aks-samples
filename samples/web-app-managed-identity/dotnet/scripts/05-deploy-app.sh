@@ -194,6 +194,7 @@ kubectl apply -f -
 if [[ $DEPLOY_GATEWAY == "true" ]]; then
 	# Create Issuer for Gateway API HTTP-01 solver (before gateway to avoid race condition)
 	cat issuer.yml |
+	yq "(.spec.acme.email)|=\"$ACME_EMAIL\"" |
 	yq "(.spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].name)|=\"$NAME\"" |
 	yq "(.spec.acme.solvers[0].http01.gatewayHTTPRoute.parentRefs[0].namespace)|=\"$NAMESPACE\"" |
 	kubectl apply -f -
@@ -213,6 +214,10 @@ cat service.yml |
 yq "(.metadata.namespace)|="\""$NAMESPACE"\" |
 kubectl apply -f -
 
+# Roll the pods so a re-push of the same image tag actually takes effect: the pod template is unchanged,
+# so kubectl apply reports no change and leaves the running pods on the image they started with.
+kubectl rollout restart deployment/$DEPLOYMENT_NAME --namespace $NAMESPACE
+
 if [[ $DEPLOY_GATEWAY == "true" ]]; then
 	# Create gateway
 	cat gateway.yml |
@@ -226,10 +231,6 @@ if [[ $DEPLOY_GATEWAY == "true" ]]; then
 	yq "(.metadata.namespace)|="\""$NAMESPACE"\" |
 	yq "(.spec.hostnames[0])|="\""$SUBDOMAIN.$DNS_ZONE_NAME"\" |
 	kubectl apply -f -
-
-# Roll the pods so a re-push of the same image tag actually takes effect: the pod template is unchanged,
-# so kubectl apply reports no change and leaves the running pods on the image they started with.
-kubectl rollout restart deployment/$DEPLOYMENT_NAME --namespace $NAMESPACE
 
 	# Retrieve the public IP address from the gateway
 	echo -n "Retrieving the external IP address from the [$NAME] gateway..."
