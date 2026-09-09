@@ -1,0 +1,224 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pg-postgres-secret
+  namespace: vacation-planner-postgres-in-cluster
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "SuperStrongPass123"
+  REPL_PASSWORD: "ReplStrongPass123"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pg-postgres-scripts
+  namespace: vacation-planner-postgres-in-cluster
+data:
+  # Runs only on the primary (pod-0): the official entrypoint executes
+  # everything in /docker-entrypoint-initdb.d only when it runs initdb,
+  # which happens solely on a fresh primary. Replicas get their data via
+  # pg_basebackup, so their PGDATA is already populated and these are skipped.
+  primary-init.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    ORD="${HOSTNAME##*-}"
+    if [ "$ORD" != "0" ]; then
+      echo "not primary, skipping primary-init"
+      exit 0
+    fi
+    echo "configuring primary for streaming replication"
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<EOSQL
+      CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD '$REPL_PASSWORD';
+      ALTER SYSTEM SET wal_level = replica;
+      ALTER SYSTEM SET max_wal_senders = 10;
+      ALTER SYSTEM SET max_replication_slots = 10;
+      ALTER SYSTEM SET hot_standby = on;
+      ALTER SYSTEM SET wal_keep_size = '512MB';
+    EOSQL
+    echo "host replication replicator 0.0.0.0/0 scram-sha-256" >> "$PGDATA/pg_hba.conf"
+    echo "primary-init done (wal_level applied on the real server start)"
+
+  # Runs as an initContainer on every pod. No-op on the primary and on any
+  # pod whose data dir is already initialized. On a fresh standby it clones
+  # the primary with pg_basebackup and wires up primary_conninfo.
+  replica-init.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    ORD="${HOSTNAME##*-}"
+    if [ "$ORD" = "0" ]; then
+      echo "primary, no basebackup needed"
+      exit 0
+    fi
+    if [ -s "$PGDATA/PG_VERSION" ]; then
+      echo "data dir already initialized, skipping basebackup"
+      exit 0
+    fi
+    echo "waiting for primary pg-postgres-0 to accept connections..."
+    until pg_isready -h pg-postgres-0.pg-postgres-hl -p 5432 -U "$POSTGRES_USER"; do
+      sleep 2
+    done
+    echo "cloning primary via pg_basebackup..."
+    export PGPASSWORD="$REPL_PASSWORD"
+    pg_basebackup -h pg-postgres-0.pg-postgres-hl -p 5432 -U replicator \
+      -D "$PGDATA" -Fp -Xs -R -P
+    # -R already wrote standby.signal + a password-less primary_conninfo.
+    # Append a complete primary_conninfo (last value wins) so the walreceiver
+    # can authenticate.
+    cat >> "$PGDATA/postgresql.auto.conf" <<EOF
+    primary_conninfo = 'host=pg-postgres-0.pg-postgres-hl port=5432 user=replicator password=$REPL_PASSWORD application_name=$HOSTNAME'
+    EOF
+    echo "standby $HOSTNAME initialized"
+---
+# Headless service: stable per-pod DNS (pg-postgres-0.pg-postgres-hl, ...)
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-postgres-hl
+  namespace: vacation-planner-postgres-in-cluster
+  labels:
+    app: pg-postgres
+spec:
+  clusterIP: None
+  selector:
+    app: pg-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+# Write endpoint: targets ONLY pod-0 (the primary) via the per-pod label.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-postgres-primary
+  namespace: vacation-planner-postgres-in-cluster
+  labels:
+    app: pg-postgres
+    role: primary
+spec:
+  type: ClusterIP
+  selector:
+    app: pg-postgres
+    statefulset.kubernetes.io/pod-name: pg-postgres-0
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+# Read endpoint: round-robins across all pods (primary + standbys).
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-postgres-read
+  namespace: vacation-planner-postgres-in-cluster
+  labels:
+    app: pg-postgres
+    role: read
+spec:
+  type: ClusterIP
+  selector:
+    app: pg-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pg-postgres
+  namespace: vacation-planner-postgres-in-cluster
+spec:
+  serviceName: pg-postgres-hl
+  replicas: 3
+  podManagementPolicy: OrderedReady   # primary (pod-0) becomes Ready before standbys start
+  selector:
+    matchLabels:
+      app: pg-postgres
+  template:
+    metadata:
+      labels:
+        app: pg-postgres
+    spec:
+      securityContext:
+        runAsUser: 999     # postgres uid in the official image
+        runAsGroup: 999
+        fsGroup: 999       # makes the Azure disk PVC writable by postgres
+      initContainers:
+        - name: init-replica
+          image: postgres:16
+          command: ["/bin/bash", "/scripts/replica-init.sh"]
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_USER
+              value: postgres
+            - name: REPL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pg-postgres-secret
+                  key: REPL_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: scripts
+              mountPath: /scripts
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pg-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: REPL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pg-postgres-secret
+                  key: REPL_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: scripts
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["bash", "-c", "pg_isready -U postgres -h 127.0.0.1"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["bash", "-c", "pg_isready -U postgres -h 127.0.0.1"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: scripts
+          configMap:
+            name: pg-postgres-scripts
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: managed-csi-premium
+        resources:
+          requests:
+            storage: 20Gi

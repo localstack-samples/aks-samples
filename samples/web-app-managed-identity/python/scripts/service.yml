@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vacation-planner-identity
+  namespace: vacation-planner-identity
+  labels:
+    app: vacation-planner-identity
+spec:
+  type: ClusterIP
+  selector:
+    app: vacation-planner-identity
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http

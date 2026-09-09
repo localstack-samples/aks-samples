@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: vacation-planner-file-pv
+  annotations:
+    pv.kubernetes.io/provisioned-by: file.csi.azure.com
+  labels:
+    app: vacation-planner-file
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    # Every replica of the deployment mounts the same share at the same time
+    - ReadWriteMany
+  # Retain, so deleting the claim leaves the file share and its activities untouched
+  persistentVolumeReclaimPolicy: Retain
+  # No storage class on purpose: the claim in persistentvolumeclaim.yml sets storageClassName to the
+  # empty string and binds to this volume by name, so no provisioner ever looks at it.
+  mountOptions:
+    # Mount options recommended by the Azure Files CSI driver documentation for NFS
+    # (https://learn.microsoft.com/en-us/azure/aks/azure-csi-files-storage-provision): four
+    # connections to the share, no reserved source port, and a 30 second attribute cache.
+    #
+    # Unlike the SMB volume, there are no uid, gid or mode options here: an NFS share carries real
+    # POSIX ownership and ignores them. The init container of the deployment chowns the mount point
+    # to uid 1000 instead.
+    - nconnect=4
+    - noresvport
+    - actimeo=30
+  csi:
+    driver: file.csi.azure.com
+    # Must be unique per share in the cluster: {resource group}#{storage account}#{file share}
+    volumeHandle: "resource-group#storage-account#file-share"
+    volumeAttributes:
+      # Without this the driver mounts the share over SMB and the mount fails, because the share of a
+      # premium FileStorage account created with --enabled-protocols NFS speaks NFSv4.1 only.
+      protocol: nfs
+      resourceGroup: resource-group
+      storageAccount: storage-account
+      shareName: file-share
+    # No nodeStageSecretRef: an NFS share has no key-based authentication. Access is granted by the
+    # network rules of the storage account, which 01-deploy-resources.sh restricts to the node subnets.

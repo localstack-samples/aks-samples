@@ -1,0 +1,165 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vacation-planner-file
+  namespace: vacation-planner-file
+  labels:
+    app: vacation-planner-file
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vacation-planner-file
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: vacation-planner-file
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      volumes:
+        # The Azure file share, mounted by the Azure Files CSI driver. All three replicas mount the
+        # same share, which is what makes the activities they serve identical.
+        - name: activities
+          persistentVolumeClaim:
+            claimName: vacation-planner-file-pvc
+        # The sample activities the init container copies into the share when they are missing
+        - name: seed
+          configMap:
+            name: vacation-planner-file-seed
+      # Prepares the file share before the app starts, and runs as root, which is why the app
+      # container declares its own securityContext instead of the pod declaring it for both.
+      #
+      # On NFS it takes ownership of the mount point: an NFS share carries real POSIX ownership,
+      # arrives owned by root, and ignores the uid and gid mount options that solve this for SMB.
+      # securityContext.fsGroup is not an alternative: the file.csi.azure.com CSIDriver object
+      # declares fsGroupPolicy: ReadWriteOnceWithFSType, so the kubelet applies fsGroup only to a
+      # ReadWriteOnce volume with a file system type, and this volume is ReadWriteMany. Setting
+      # fsGroup here would silently do nothing. The chown is not recursive: files created by the app
+      # already belong to it, and a recursive chown over NFS would make every pod start slower as the
+      # share fills up.
+      #
+      # It then seeds the share with the sample activities, skipping the files that are already there,
+      # so the three replicas starting at the same time cannot conflict.
+      initContainers:
+        - name: init-file-share
+          image: <your-registry>.azurecr.io/vacation-planner-file:v1
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          env:
+            # Set to smb or nfs by 05-deploy-app.sh. The chown must not run on an SMB mount, where it
+            # fails with EPERM because the CIFS client synthesizes ownership from the mount options.
+            - name: FILE_SHARE_PROTOCOL
+              value: smb
+            - name: ACTIVITIES_DIR
+              valueFrom:
+                configMapKeyRef:
+                  name: vacation-planner-file-config
+                  key: ACTIVITIES_DIR
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              # A no-op when ACTIVITIES_DIR is the mount point itself, which is the default. It
+              # matters when it points at a subdirectory of the share: that directory has to exist
+              # before it can be chowned or seeded, and the app is not able to create it as uid 1000
+              # on an NFS share owned by root.
+              mkdir -p "$ACTIVITIES_DIR"
+
+              if [ "$FILE_SHARE_PROTOCOL" = "nfs" ]; then
+                echo "Taking ownership of $ACTIVITIES_DIR as uid 1000..."
+                chown 1000:1000 "$ACTIVITIES_DIR"
+                chmod 0755 "$ACTIVITIES_DIR"
+              fi
+
+              for file in /seed/*-activity.txt; do
+                [ -e "$file" ] || continue
+
+                name=$(basename "$file")
+
+                if [ -e "$ACTIVITIES_DIR/$name" ]; then
+                  echo "Activity file [$name] already exists in the file share, skipping it..."
+                  continue
+                fi
+
+                echo "Seeding the file share with the activity file [$name]..."
+                cp "$file" "$ACTIVITIES_DIR/$name"
+
+                if [ "$FILE_SHARE_PROTOCOL" = "nfs" ]; then
+                  chown 1000:1000 "$ACTIVITIES_DIR/$name"
+                fi
+              done
+
+              echo "The file share is ready."
+          volumeMounts:
+            - name: activities
+              mountPath: /data
+            - name: seed
+              mountPath: /seed
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+      containers:
+        - name: vacation-planner-file
+          image: <your-registry>.azurecr.io/vacation-planner-file:v1
+          imagePullPolicy: Always
+          # The image already runs as this user, declared here as well because it is the identity the
+          # mount options of the SMB volume and the ownership of the NFS share are aligned with.
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ACTIVITIES_DIR
+              valueFrom:
+                configMapKeyRef:
+                  name: vacation-planner-file-config
+                  key: ACTIVITIES_DIR
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vacation-planner-file-secrets
+                  key: SECRET_KEY
+          volumeMounts:
+            - name: activities
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3

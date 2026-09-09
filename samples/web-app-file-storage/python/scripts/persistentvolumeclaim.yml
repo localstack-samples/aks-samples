@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vacation-planner-file-pvc
+  namespace: vacation-planner-file
+  labels:
+    app: vacation-planner-file
+spec:
+  # Committed in the shape used by static provisioning: the claim is bound by name to the volume
+  # created from persistentvolume-smb.yml or persistentvolume-nfs.yml, and the empty storage class
+  # keeps any provisioner (including the cluster's default storage class) from stepping in.
+  #
+  # For dynamic provisioning, 05-deploy-app.sh removes volumeName and sets storageClassName to the
+  # class that provisions the share: the built-in azurefile-csi for SMB, or the class created from
+  # storageclass-nfs.yml for NFS.
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: vacation-planner-file-pv
+  resources:
+    requests:
+      # 100 GiB is the minimum size of a premium file share, which the NFS variants need, so all four
+      # combinations of the sample can share this single claim.
+      storage: 100Gi

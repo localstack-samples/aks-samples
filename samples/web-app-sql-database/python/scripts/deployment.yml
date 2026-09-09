@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vacation-planner-sql
+  namespace: vacation-planner-sql
+  labels:
+    app: vacation-planner-sql
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vacation-planner-sql
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: vacation-planner-sql
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+        - name: vacation-planner-sql
+          image: <your-registry>.azurecr.io/vacation-planner-sql:v1
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SQL_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  name: vacation-planner-sql-config
+                  key: SQL_SERVER
+            - name: SQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: vacation-planner-sql-config
+                  key: SQL_DATABASE
+            - name: SQL_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: vacation-planner-sql-config
+                  key: SQL_USERNAME
+            - name: LOGIN_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: vacation-planner-sql-config
+                  key: LOGIN_NAME
+            - name: SQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vacation-planner-sql-secrets
+                  key: SQL_PASSWORD
+            - name: FLASK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vacation-planner-sql-secrets
+                  key: FLASK_SECRET_KEY
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
