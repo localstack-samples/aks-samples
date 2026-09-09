@@ -157,10 +157,13 @@ public sealed class FileActivityStore(FileStorageOptions options, ILogger<FileAc
     /// <summary>
     /// The equivalent of the Python sample's os.access(W_OK | X_OK): the only portable proof that the mounted
     /// share accepts writes from this uid is to write to it. The probe is a dot file the listing never shows.
+    /// Its name has to be unique per probe: every replica mounts the same share and every container runs the app
+    /// as PID 1, so a name derived from the process id is the same in all replicas, and one replica deleting the
+    /// probe while another writes it fails the liveness check of a perfectly healthy pod.
     /// </summary>
     private void ProbeWritable()
     {
-        var probe = Path.Combine(_directory, $".write-probe-{Environment.ProcessId}");
+        var probe = Path.Combine(_directory, $".write-probe-{Environment.MachineName}-{Guid.NewGuid():N}");
         File.WriteAllText(probe, string.Empty);
         File.Delete(probe);
     }
