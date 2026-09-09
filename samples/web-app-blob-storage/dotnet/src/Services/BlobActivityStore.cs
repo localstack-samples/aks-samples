@@ -9,6 +9,9 @@ namespace VacationPlanner.Services;
 /// <summary>One blob per activity in a Blob Storage container; the blob name is the activity id and its content the text.</summary>
 public sealed class BlobActivityStore : IActivityStore
 {
+    /// <summary>Suffix of the blobs holding the activities, one blob per activity.</summary>
+    private const string ActivityBlobSuffix = "-activity.txt";
+
     private readonly BlobContainerClient _container;
     private readonly ILogger<BlobActivityStore> _logger;
 
@@ -68,13 +71,27 @@ public sealed class BlobActivityStore : IActivityStore
     }
 
     public Task<bool> AddAsync(string text, CancellationToken cancellationToken) =>
-        UploadAsync($"{DateTime.Now:yyyy-MM-dd-HH-mm-ss}-activity.txt", text, cancellationToken);
+        UploadAsync($"{DateTime.Now:yyyy-MM-dd-HH-mm-ss}{ActivityBlobSuffix}", text, cancellationToken);
 
-    public Task<bool> UpdateAsync(string id, string text, CancellationToken cancellationToken) =>
-        UploadAsync(id, text, cancellationToken);
+    public Task<bool> UpdateAsync(string id, string text, CancellationToken cancellationToken)
+    {
+        if (!IsActivityName(id))
+        {
+            _logger.LogWarning("Invalid activity name '{Name}'.", id);
+            return Task.FromResult(false);
+        }
+
+        return UploadAsync(id, text, cancellationToken);
+    }
 
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken)
     {
+        if (!IsActivityName(id))
+        {
+            _logger.LogWarning("Invalid activity name '{Name}'.", id);
+            return false;
+        }
+
         // As in the Python sample, a blob that is already gone still counts as deleted.
         var deleted = await _container.GetBlobClient(id).DeleteIfExistsAsync(cancellationToken: cancellationToken);
         if (deleted.Value)
@@ -108,6 +125,17 @@ public sealed class BlobActivityStore : IActivityStore
         _logger.LogInformation("Uploaded blob '{Blob}' to container '{Container}'", name, _container.Name);
         return true;
     }
+
+    /// <summary>
+    /// Whether the name is one of this app's activity blobs, and nothing else: a blob called
+    /// yyyy-MM-dd-HH-mm-ss-activity.txt directly in the container. The name arrives from a form field, so this
+    /// keeps it from reaching any other blob in the container.
+    /// </summary>
+    private static bool IsActivityName(string? name) =>
+        !string.IsNullOrEmpty(name)
+        && name is not ("." or "..")
+        && !name.Contains('/') && !name.Contains('\\')
+        && name.EndsWith(ActivityBlobSuffix, StringComparison.Ordinal);
 
     /// <summary>
     /// Builds the client from the connection string's explicit <c>BlobEndpoint</c> and shared key when they are present,

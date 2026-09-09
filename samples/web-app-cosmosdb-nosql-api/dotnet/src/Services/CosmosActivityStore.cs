@@ -103,8 +103,10 @@ public sealed class CosmosActivityStore : IActivityStore
         }
         catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            _logger.LogWarning("Activity {Id} was not found; nothing to delete", id);
-            return false;
+            // Already gone counts as deleted: every replica serves the same container, so another replica
+            // may have deleted the item a moment earlier, and the user should see it disappear either way.
+            _logger.LogInformation("Activity {Id} was not found: already deleted.", id);
+            return true;
         }
     }
 
