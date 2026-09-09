@@ -23,6 +23,18 @@ blob_service_client: BlobServiceClient | None = None
 debug: bool = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
 activities: List[Tuple[str, str]] = []
 
+# Suffix of the blobs holding the activities, one blob per activity.
+ACTIVITY_BLOB_SUFFIX: str = "-activity.txt"
+
+def is_activity_name(name: str | None) -> bool:
+    """Whether the name is one of this app's activity blobs, and nothing else.
+
+    Every activity is a blob called YYYY-MM-DD-HH-MM-SS-activity.txt, so requiring that shape is both the
+    read filter and the write guard: it rejects an empty name and any name the app did not create. Names
+    arrive from a form field, so they are checked before they reach the container.
+    """
+    return bool(name) and name == os.path.basename(str(name)) and str(name).endswith(ACTIVITY_BLOB_SUFFIX)
+
 def get_environment_variables():
     """Get the value of an environment variable or raise an error if not set."""
     global connection_string, container_name, client_id, client_secret, tenant_id, account_url
@@ -226,7 +238,11 @@ def index():
         activity = request.form.get('activity', '').strip()
         if activity:
             if row_id:
-                # Update existing blob content in place
+                # Update the existing blob content in place. The name comes from the form, so it is checked
+                # before it reaches the container.
+                if not is_activity_name(row_id):
+                    print(f"Invalid activity name '{row_id}'.")
+                    return redirect(url_for('index'))
                 update_blob(row_id, activity)
                 for i, act in enumerate(activities):
                     if act[0] == row_id:
@@ -236,7 +252,7 @@ def index():
             else:
                 # Generate a unique blob name with a timestamp
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-                name = f"{timestamp}-activity.txt"
+                name = f"{timestamp}{ACTIVITY_BLOB_SUFFIX}"
                 create_blob_if_not_exists(name, activity)
                 activities.append((name, activity))
                 flash('Activity added successfully.')
@@ -247,12 +263,24 @@ def index():
     read_blobs_from_container()
     return render_template('index.html', activities=activities)
 
-@app.route('/delete/<int:activity_id>', methods=['POST'])
-def delete(activity_id):
-    if 0 <= activity_id < len(activities):
-        delete_blob(activities[activity_id][0])
-        activities.pop(activity_id)
-        flash('Activity deleted successfully.')
+@app.route('/delete/<string:activity_id>', methods=['POST'])
+def delete(activity_id: str):
+    """Delete the activity whose blob name is activity_id.
+
+    The activity is identified by its blob name, never by its position in the rendered page: every replica
+    reloads the container on each GET, so the list can change between rendering a page and submitting a
+    delete from it, and a position would then delete whatever activity happens to sit there now.
+    """
+    if not is_activity_name(activity_id):
+        print(f"Invalid activity name '{activity_id}'.")
+        return redirect(url_for('index'))
+
+    delete_blob(activity_id)
+    for i, act in enumerate(activities):
+        if act[0] == activity_id:
+            activities.pop(i)
+            break
+    flash('Activity deleted successfully.')
     return redirect(url_for('index'))
 
 @app.route('/health')

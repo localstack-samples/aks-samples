@@ -108,12 +108,20 @@ def favicon():
     """Serve the favicon from the static folder."""
     return app.send_static_file('favicon.ico')
 
-@app.route('/delete/<int:activity_id>', methods=['POST'])
-def delete(activity_id: int):
-    """Handle deletion of an activity by its index."""
-    if 0 <= activity_id < len(activities):
+@app.route('/delete/<string:activity_id>', methods=['POST'])
+def delete(activity_id: str):
+    """Handle deletion of an activity by its document id.
+
+    The document id addresses the activity, never its position in the rendered page: every replica reloads
+    the collection on each GET, so a position would delete whatever activity happens to sit there now.
+    """
+    if activity_id:
         # Delete the document from MongoDB
-        mongodb_client.delete_document_by_id(activities[activity_id][0])
+        mongodb_client.delete_document_by_id(activity_id)
+        for i, act in enumerate(activities):
+            if act[0] == activity_id:
+                activities.pop(i)
+                break
         flash("Activity deleted.")
 
     return redirect(url_for('index'))

@@ -104,11 +104,18 @@ def read_activities_from_dir():
             if not os.path.isfile(path):
                 continue
 
-            # Read the file content
-            with open(path, "r", encoding="utf-8") as file:
-                content = file.read()
+            # Every replica mounts the same share, so another replica can delete a file between the
+            # listing above and this read. That is a file that is gone, not an error: skip it and keep
+            # reading the rest instead of failing the whole page.
+            try:
+                size = os.path.getsize(path)
+                with open(path, "r", encoding="utf-8") as file:
+                    content = file.read()
+            except FileNotFoundError:
+                print(f"Activity file '{name}' disappeared while reading the directory: skipping it.")
+                continue
 
-            print(f"Found activity file: {name} with size {os.path.getsize(path)} bytes")
+            print(f"Found activity file: {name} with size {size} bytes")
             print(f"Content of activity file '{name}': {content}")
             activities.append((name, content))
     except ValueError as ve:

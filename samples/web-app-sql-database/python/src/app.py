@@ -106,34 +106,40 @@ def favicon():
     """Serve the favicon from the static folder."""
     return app.send_static_file('favicon.ico')
 
-@app.route('/delete/<int:activity_id>', methods=['POST'])
-def delete(activity_id: int):
-    """Handle deletion of an activity by its index in the list."""
+@app.route('/delete/<string:activity_id>', methods=['POST'])
+def delete(activity_id: str):
+    """Handle deletion of an activity by its database id.
+
+    The id addresses the activity, never its position in the rendered page: every replica reloads the table
+    on each GET, so a position would delete whatever activity happens to sit there now.
+    """
     try:
-        if 0 <= activity_id < len(activities):
-            db_activity_id = activities[activity_id][0]
+        if activity_id:
             # Delete the activity from SQL Database
-            rows_deleted = activities_helper.delete_activity_by_id(db_activity_id)
-            
+            rows_deleted = activities_helper.delete_activity_by_id(activity_id)
+
             if rows_deleted > 0:
                 flash('Activity deleted.')
-                logger.info(f"Activity deleted: {db_activity_id}")
+                logger.info(f"Activity deleted: {activity_id}")
             else:
-                logger.warning(f"No activity found with ID: {db_activity_id}")
+                logger.warning(f"No activity found with ID: {activity_id}")
     except (ConnectionError, ValueError) as e:
         logger.error("Error deleting activity: %s", e)
 
     return redirect(url_for('index'))
 
-@app.route('/update/<int:activity_id>', methods=['GET'])
-def update(activity_id: int):
-    """Handle updating of an activity by its index in the list."""
+@app.route('/update/<string:activity_id>', methods=['GET'])
+def update(activity_id: str):
+    """Open the edit form for the activity with this database id."""
     try:
-        if 0 <= activity_id < len(activities):
-            db_activity_id = activities[activity_id][0]
-            activity_text = activities[activity_id][1]
-            # Redirect to index with edit parameters
-            return redirect(url_for('index', edit_id=db_activity_id, edit_activity=activity_text))
+        if activity_id:
+            # Read the current text from the database, so the form does not depend on this replica's
+            # in-process list, which another replica may have made stale.
+            for stored_id, activity_text in read_activities_from_db(username):
+                if stored_id == activity_id:
+                    # Redirect to index with edit parameters
+                    return redirect(url_for('index', edit_id=activity_id, edit_activity=activity_text))
+            logger.warning(f"No activity found with ID: {activity_id}")
     except (ConnectionError, ValueError) as e:
         logger.error("Error preparing activity for update: %s", e)
 

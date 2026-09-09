@@ -3,6 +3,7 @@ import datetime
 import logging
 import hashlib
 from flask import Flask, flash, jsonify, render_template, request, redirect, url_for
+from azure.cosmos import exceptions
 from cosmosdb_client import CosmosDbClient
 
 
@@ -107,11 +108,17 @@ def index():
 @app.route('/delete/<string:activity_id>', methods=['POST'])
 def delete(activity_id: str):
     logger.info(f"Deleting activity with ID: {activity_id}")
-    
-    # Direct deletion using the ID passed in the URL
-    get_cosmos().delete_document_by_id(activity_id, username)
+
+    # Direct deletion using the ID passed in the URL. An activity that is already gone counts as deleted:
+    # every replica serves the same container, so another replica may have deleted it a moment earlier,
+    # and raising here would answer the user with HTTP 500 for work that is already done.
+    try:
+        get_cosmos().delete_document_by_id(activity_id, username)
+    except exceptions.CosmosResourceNotFoundError:
+        logger.warning(f"Activity {activity_id} was not found; nothing to delete")
+
     flash('Activity deleted.')
-    
+
     return redirect(url_for('index'))
 
 @app.route('/health')

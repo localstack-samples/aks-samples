@@ -78,10 +78,16 @@ def favicon():
     return app.send_static_file("favicon.ico")
 
 
-@app.route("/delete/<int:activity_id>", methods=["POST"])
-def delete(activity_id: int):
-    if 0 <= activity_id < len(activities):
-        db_client.delete_activity(activities[activity_id][0])
+@app.route("/delete/<string:activity_id>", methods=["POST"])
+def delete(activity_id: str):
+    """Delete the activity with this id.
+
+    The row id addresses the activity, never its position in the rendered page: every replica reloads the
+    table on each GET, so the list can change between rendering a page and submitting a delete from it, and
+    a position would then delete whatever activity happens to sit there now.
+    """
+    if activity_id:
+        db_client.delete_activity(activity_id)
         flash("Activity deleted.")
     return redirect(url_for("index"))
 
