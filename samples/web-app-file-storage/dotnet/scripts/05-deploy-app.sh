@@ -201,6 +201,10 @@ yq "(.metadata.namespace)|="\""$NAMESPACE"\" |
 yq "(.metadata.name)|="\""$SERVICE_NAME"\" |
 kubectl apply -f -
 
+# Roll the pods so a re-push of the same image tag actually takes effect: the pod template is unchanged,
+# so kubectl apply reports no change and leaves the running pods on the image they started with.
+kubectl rollout restart deployment/$DEPLOYMENT_NAME --namespace $NAMESPACE
+
 # Wait for the rollout, so an unattended run of the scripts fails here instead of appearing to succeed
 # while the pods are unable to mount the file share.
 echo "Waiting for the [$DEPLOYMENT_NAME] deployment to roll out..."

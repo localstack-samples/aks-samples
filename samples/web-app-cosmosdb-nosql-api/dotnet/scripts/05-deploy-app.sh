@@ -125,6 +125,10 @@ cat service.yml |
 yq "(.metadata.namespace)|="\""$NAMESPACE"\" |
 kubectl apply -f -
 
+# Roll the pods so a re-push of the same image tag actually takes effect: the pod template is unchanged,
+# so kubectl apply reports no change and leaves the running pods on the image they started with.
+kubectl rollout restart deployment/$DEPLOYMENT_NAME --namespace $NAMESPACE
+
 # Wait for the rollout so a pod stuck in ImagePullBackOff or CrashLoopBackOff is reported here, not discovered later
 echo "Waiting for deployment [$DEPLOYMENT_NAME] to roll out..."
 if kubectl rollout status deployment/$DEPLOYMENT_NAME -n $NAMESPACE --timeout=600s; then

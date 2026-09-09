@@ -76,3 +76,7 @@ kubectl apply -f -
 cat service.yml |
 yq "(.metadata.namespace)|="\""$NAMESPACE"\" |
 kubectl apply -f -
+
+# Roll the pods so a re-push of the same image tag actually takes effect: the pod template is unchanged,
+# so kubectl apply reports no change and leaves the running pods on the image they started with.
+kubectl rollout restart deployment/$DEPLOYMENT_NAME --namespace $NAMESPACE

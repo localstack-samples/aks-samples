@@ -226,6 +226,10 @@ if [[ $DEPLOY_GATEWAY == "true" ]]; then
 	yq "(.spec.hostnames[0])|="\""$SUBDOMAIN.$DNS_ZONE_NAME"\" |
 	kubectl apply -f -
 
+# Roll the pods so a re-push of the same image tag actually takes effect: the pod template is unchanged,
+# so kubectl apply reports no change and leaves the running pods on the image they started with.
+kubectl rollout restart deployment/$DEPLOYMENT_NAME --namespace $NAMESPACE
+
 	# Retrieve the public IP address from the gateway
 	echo -n "Retrieving the external IP address from the [$NAME] gateway..."
 	while [[ -z $PUBLIC_IP_ADDRESS ]]; do
