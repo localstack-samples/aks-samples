@@ -498,15 +498,15 @@ PGPASSWORD="$PG_USER_PASSWORD" psql \
 	--no-password \
 	--set=ON_ERROR_STOP=on \
 	-c "INSERT INTO activities (id, username, activity) VALUES
-			(md5('paolo_pisa_seed'), 'paolo', 'Visit the Leaning Tower in Pisa'),
-			(md5('paolo_volterra_seed'), 'paolo', 'Explore Etruscan walls in Volterra'),
-			(md5('paolo_san_gimignano_seed'), 'paolo', 'Climb Torre Grossa in San Gimignano'),
-			(md5('paolo_siena_seed'), 'paolo', 'Walk across Piazza del Campo in Siena'),
-			(md5('paolo_montalcino_seed'), 'paolo', 'Taste Brunello wine in Montalcino'),
-			(md5('paolo_pienza_seed'), 'paolo', 'Sample Pecorino cheese in Pienza'),
-			(md5('paolo_florence_seed'), 'paolo', 'Admire Michelangelo''s David in Florence'),
-			(md5('paolo_viareggio_beach_seed'), 'paolo', 'Relax by the beach in Viareggio'),
-			(md5('paolo_viareggio_promenade_seed'), 'paolo', 'Stroll along the Viareggio promenade')
+			(md5('paolo_pisa_seed'), '$LOGIN_NAME', 'Visit the Leaning Tower in Pisa'),
+			(md5('paolo_volterra_seed'), '$LOGIN_NAME', 'Explore Etruscan walls in Volterra'),
+			(md5('paolo_san_gimignano_seed'), '$LOGIN_NAME', 'Climb Torre Grossa in San Gimignano'),
+			(md5('paolo_siena_seed'), '$LOGIN_NAME', 'Walk across Piazza del Campo in Siena'),
+			(md5('paolo_montalcino_seed'), '$LOGIN_NAME', 'Taste Brunello wine in Montalcino'),
+			(md5('paolo_pienza_seed'), '$LOGIN_NAME', 'Sample Pecorino cheese in Pienza'),
+			(md5('paolo_florence_seed'), '$LOGIN_NAME', 'Admire Michelangelo''s David in Florence'),
+			(md5('paolo_viareggio_beach_seed'), '$LOGIN_NAME', 'Relax by the beach in Viareggio'),
+			(md5('paolo_viareggio_promenade_seed'), '$LOGIN_NAME', 'Stroll along the Viareggio promenade')
 		ON CONFLICT (id) DO NOTHING;"
 
 if [ $? -eq 0 ]; then
@@ -644,9 +644,11 @@ fi
 
 set_secret "$SECRET_KEY_SECRET_NAME" "$SECRET_KEY_VALUE"
 
-PG_USER_SECRET_ID=$(secret_identifier "$PG_USER_SECRET_NAME")
-PG_PASSWORD_SECRET_ID=$(secret_identifier "$PG_PASSWORD_SECRET_NAME")
-SECRET_KEY_SECRET_ID=$(secret_identifier "$SECRET_KEY_SECRET_NAME")
+# || exit 1 on every call: the function's own `exit 1` only leaves the command substitution's
+# subshell, so without this the script would carry on with an empty identifier.
+PG_USER_SECRET_ID=$(secret_identifier "$PG_USER_SECRET_NAME") || exit 1
+PG_PASSWORD_SECRET_ID=$(secret_identifier "$PG_PASSWORD_SECRET_NAME") || exit 1
+SECRET_KEY_SECRET_ID=$(secret_identifier "$SECRET_KEY_SECRET_NAME") || exit 1
 
 #********************************************
 # Azure App Configuration

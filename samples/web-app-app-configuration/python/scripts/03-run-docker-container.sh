@@ -34,14 +34,16 @@ resolve_setting() {
 
 echo "Resolving the application settings from the [$APP_CONFIG_NAME] App Configuration store..."
 
-PG_HOST_VALUE=$(resolve_setting "PG_HOST")
-PG_PORT_VALUE=$(resolve_setting "PG_PORT")
-PG_DATABASE_VALUE=$(resolve_setting "PG_DATABASE")
-LOGIN_NAME_VALUE=$(resolve_setting "LOGIN_NAME")
-CONFIG_VERSION_VALUE=$(resolve_setting "$SENTINEL_KEY")
-PG_USER_VALUE=$(resolve_setting "PG_USER")
-PG_PASSWORD_VALUE=$(resolve_setting "PG_PASSWORD")
-SECRET_KEY_VALUE=$(resolve_setting "SECRET_KEY")
+# || exit 1 on every call: resolve_setting's `exit 1` only leaves the command substitution's
+# subshell, so without this docker run would start with empty settings.
+PG_HOST_VALUE=$(resolve_setting "PG_HOST") || exit 1
+PG_PORT_VALUE=$(resolve_setting "PG_PORT") || exit 1
+PG_DATABASE_VALUE=$(resolve_setting "PG_DATABASE") || exit 1
+LOGIN_NAME_VALUE=$(resolve_setting "LOGIN_NAME") || exit 1
+CONFIG_VERSION_VALUE=$(resolve_setting "$SENTINEL_KEY") || exit 1
+PG_USER_VALUE=$(resolve_setting "PG_USER") || exit 1
+PG_PASSWORD_VALUE=$(resolve_setting "PG_PASSWORD") || exit 1
+SECRET_KEY_VALUE=$(resolve_setting "SECRET_KEY") || exit 1
 
 # The credentials are resolved but never echoed.
 echo "PG_HOST=$PG_HOST_VALUE PG_PORT=$PG_PORT_VALUE PG_DATABASE=$PG_DATABASE_VALUE LOGIN_NAME=$LOGIN_NAME_VALUE $SENTINEL_KEY=$CONFIG_VERSION_VALUE"

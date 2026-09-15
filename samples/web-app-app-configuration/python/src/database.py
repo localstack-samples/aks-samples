@@ -16,6 +16,7 @@ spun up on first server creation).
 import logging
 import os
 import time
+from contextlib import contextmanager
 
 import psycopg2
 from psycopg2.errors import OperationalError
@@ -80,6 +81,21 @@ class PostgresClient:
             connect_timeout=10,
         )
 
+    @contextmanager
+    def _connection(self):
+        """Open a connection, run the body in a transaction, and always close it.
+
+        Exiting a psycopg2 connection's ``with`` block ends the transaction but leaves the connection
+        open, so wrapping ``_connect()`` directly leaks one backend per call. Every page view reloads
+        the activity list, so the leak reaches the server's connection limit quickly.
+        """
+        conn = self._connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def ping(self) -> None:
         """Open a connection and run SELECT 1; raises when the server is unreachable."""
         conn = self._connect()
@@ -95,7 +111,7 @@ class PostgresClient:
         last_err: Exception | None = None
         for attempt in range(1, retries + 1):
             try:
-                with self._connect() as conn, conn.cursor() as cur:
+                with self._connection() as conn, conn.cursor() as cur:
                     cur.execute(_SCHEMA_DDL)
                     conn.commit()
                 logger.info("PostgreSQL schema initialized")
@@ -111,7 +127,7 @@ class PostgresClient:
         )
 
     def list_activities(self, username: str) -> list[tuple[str, str]]:
-        with self._connect() as conn, conn.cursor() as cur:
+        with self._connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT id, activity FROM activities WHERE username = %s "
                 "ORDER BY created_at DESC",
@@ -120,7 +136,7 @@ class PostgresClient:
             return [(row[0], row[1]) for row in cur.fetchall()]
 
     def insert_activity(self, activity_id: str, username: str, activity_text: str) -> None:
-        with self._connect() as conn, conn.cursor() as cur:
+        with self._connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO activities (id, username, activity) VALUES (%s, %s, %s) "
                 "ON CONFLICT (id) DO NOTHING",
@@ -129,7 +145,7 @@ class PostgresClient:
             conn.commit()
 
     def update_activity(self, activity_id: str, activity_text: str) -> int:
-        with self._connect() as conn, conn.cursor() as cur:
+        with self._connection() as conn, conn.cursor() as cur:
             cur.execute(
                 "UPDATE activities SET activity = %s WHERE id = %s",
                 (activity_text, activity_id),
@@ -138,7 +154,7 @@ class PostgresClient:
             return cur.rowcount
 
     def delete_activity(self, activity_id: str) -> int:
-        with self._connect() as conn, conn.cursor() as cur:
+        with self._connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM activities WHERE id = %s", (activity_id,))
             conn.commit()
             return cur.rowcount
