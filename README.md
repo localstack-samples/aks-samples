@@ -71,6 +71,7 @@ Both scripts are idempotent: they check whether each resource already exists bef
 
 - A resource group and a Log Analytics workspace (wired to the cluster through the monitoring add-on / Azure Monitor for containers).
 - A dedicated virtual network (`10.0.0.0/8`) with three subnets: `SystemSubnet` (system node pool), `UserSubnet` (user node pool), and `AzureBastionSubnet`.
+- An [Azure Bastion](https://learn.microsoft.com/en-us/azure/bastion/bastion-overview) host in `AzureBastionSubnet`, with the Standard SKU static public IP it requires, for reaching the nodes without exposing SSH to the internet. Creating it takes several minutes.
 - An [Azure Container Registry (ACR)](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-intro) that is attached to the cluster (via `--attach-acr`) so nodes can pull images without extra credentials.
 - The AKS cluster itself, configured with:
   - An Azure CNI Overlay network plugin with the Azure network policy and data plane (pod CIDR `192.168.0.0/16`, service CIDR `172.16.0.0/16`).
