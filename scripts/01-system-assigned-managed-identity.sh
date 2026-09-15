@@ -452,6 +452,9 @@ else
   echo "[$bastion_subnet_name] bastion subnet already exists in the [$virtual_network_name] virtual network"
 fi
 
+# az network bastion lives in the `bastion` CLI extension, not in azure-cli core.
+az extension add --upgrade --name bastion --only-show-errors 2>/dev/null
+
 # Check if the public IP address of the bastion host already exists
 echo "Checking if [$bastion_public_ip_name] public IP address actually exists in the [$resource_group_name] resource group..."
 az network public-ip show \
@@ -501,6 +504,7 @@ if [[ $? != 0 ]]; then
     --location $location \
     --vnet-name $virtual_network_name \
     --public-ip-address $bastion_public_ip_name \
+    --sku Basic \
     --only-show-errors 1>/dev/null
 
   if [[ $? == 0 ]]; then
