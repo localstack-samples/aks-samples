@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vacation-planner-appconfig
+  namespace: vacation-planner-appconfig
+  labels:
+    app: vacation-planner-appconfig
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vacation-planner-appconfig
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: vacation-planner-appconfig
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      # The same service account the provider uses. The pods get it so the two objects they consume and
+      # the identity that produced them stay visibly connected; the application itself never calls Azure,
+      # which is why there is no azure.workload.identity/use label on this pod template.
+      serviceAccountName: vacation-planner-appconfig-sa
+      containers:
+        - name: vacation-planner-appconfig
+          image: <your-registry>.azurecr.io/vacation-planner-appconfig:v1
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          # Every setting comes from the two objects the App Configuration Kubernetes Provider generates,
+          # taken wholesale rather than key by key: the store is the single source of truth, so a key added
+          # there reaches the pods without editing this manifest. The ConfigMap carries PG_HOST, PG_PORT,
+          # PG_DATABASE, LOGIN_NAME, DEBUG and CONFIG_VERSION; the Secret carries PG_USER, PG_PASSWORD and
+          # SECRET_KEY, resolved from Key Vault references.
+          #
+          # Environment variables are immutable once a container has started, so a refreshed ConfigMap
+          # reaches the pods only after `kubectl rollout restart`. See the README.
+          envFrom:
+            - configMapRef:
+                name: vacation-planner-appconfig-config
+            - secretRef:
+                name: vacation-planner-appconfig-secrets
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3

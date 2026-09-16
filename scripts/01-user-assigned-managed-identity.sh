@@ -30,6 +30,8 @@ user_subnet_name="UserSubnet"
 user_subnet_prefix="10.241.0.0/16"
 bastion_subnet_name="AzureBastionSubnet"
 bastion_subnet_prefix="10.242.2.0/24"
+bastion_public_ip_name="$prefix-bastion-ip-$suffix"
+bastion_host_name="$prefix-bastion-$suffix"
 
 # AKS variables
 pod_cidr="192.168.0.0/16"
@@ -449,6 +451,71 @@ if [[ $? != 0 ]]; then
 	fi
 else
 	echo "[$bastion_subnet_name] bastion subnet already exists in the [$virtual_network_name] virtual network"
+fi
+
+# az network bastion lives in the `bastion` CLI extension, not in azure-cli core.
+az extension add --upgrade --name bastion --only-show-errors 2>/dev/null
+
+# Check if the public IP address of the bastion host already exists
+echo "Checking if [$bastion_public_ip_name] public IP address actually exists in the [$resource_group_name] resource group..."
+az network public-ip show \
+	--name $bastion_public_ip_name \
+	--resource-group $resource_group_name \
+	--only-show-errors &>/dev/null
+
+if [[ $? != 0 ]]; then
+	echo "No [$bastion_public_ip_name] public IP address actually exists in the [$resource_group_name] resource group"
+	echo "Creating [$bastion_public_ip_name] public IP address in the [$resource_group_name] resource group..."
+
+	# Azure Bastion requires a Standard SKU public IP with a static allocation method
+	az network public-ip create \
+		--name $bastion_public_ip_name \
+		--resource-group $resource_group_name \
+		--location $location \
+		--sku Standard \
+		--allocation-method Static \
+		--only-show-errors 1>/dev/null
+
+	if [[ $? == 0 ]]; then
+		echo "[$bastion_public_ip_name] public IP address successfully created in the [$resource_group_name] resource group"
+	else
+		echo "Failed to create [$bastion_public_ip_name] public IP address in the [$resource_group_name] resource group"
+		exit 1
+	fi
+else
+	echo "[$bastion_public_ip_name] public IP address already exists in the [$resource_group_name] resource group"
+fi
+
+# Check if the bastion host already exists
+echo "Checking if [$bastion_host_name] bastion host actually exists in the [$resource_group_name] resource group..."
+az network bastion show \
+	--name $bastion_host_name \
+	--resource-group $resource_group_name \
+	--only-show-errors &>/dev/null
+
+if [[ $? != 0 ]]; then
+	echo "No [$bastion_host_name] bastion host actually exists in the [$resource_group_name] resource group"
+	echo "Creating [$bastion_host_name] bastion host in the [$resource_group_name] resource group..."
+
+	# The bastion host is deployed into the [$bastion_subnet_name] subnet created above: Azure looks the
+	# subnet up by that exact name, so it is never passed explicitly. This step takes several minutes.
+	az network bastion create \
+		--name $bastion_host_name \
+		--resource-group $resource_group_name \
+		--location $location \
+		--vnet-name $virtual_network_name \
+		--public-ip-address $bastion_public_ip_name \
+		--sku Basic \
+		--only-show-errors 1>/dev/null
+
+	if [[ $? == 0 ]]; then
+		echo "[$bastion_host_name] bastion host successfully created in the [$resource_group_name] resource group"
+	else
+		echo "Failed to create [$bastion_host_name] bastion host in the [$resource_group_name] resource group"
+		exit 1
+	fi
+else
+	echo "[$bastion_host_name] bastion host already exists in the [$resource_group_name] resource group"
 fi
 
 # Enable the Microsoft.Storage service endpoint on the node subnets.

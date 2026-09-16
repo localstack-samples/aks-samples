@@ -1,0 +1,45 @@
+# The Azure App Configuration Kubernetes Provider resource. The controller installed by the
+# Microsoft.AppConfiguration cluster extension watches it, reads the store, and materialises two objects:
+# the plain key-values become the ConfigMap named under target, and every key-value that is a Key Vault
+# reference is resolved and written into the Secret named under secret.target. Both objects are owned by
+# this resource: edit them by hand and the controller resets them; delete this resource and they go too.
+#
+# 05-deploy-app.sh fills in the endpoint, which it reads back from the service rather than assembling from
+# the store name, so the same manifest works against Azure (https://<store>.azconfig.io) and the LocalStack
+# emulator (https://<store>.azure.localhost.localstack.cloud:4566).
+apiVersion: azconfig.io/v1
+kind: AzureAppConfigurationProvider
+metadata:
+  name: vacation-planner-appconfig
+  namespace: vacation-planner-appconfig
+  labels:
+    app: vacation-planner-appconfig
+spec:
+  endpoint: ""
+  # The store has no geo-replicas. Discovery also needs SRV records that the emulator's in-cluster DNS
+  # does not serve, so leaving this on would cost a failed lookup on every reconcile for no benefit.
+  replicaDiscoveryEnabled: false
+  target:
+    configMapName: vacation-planner-appconfig-config
+  auth:
+    workloadIdentity:
+      serviceAccountName: vacation-planner-appconfig-sa
+  configuration:
+    selectors:
+      - keyFilter: "*"
+    refresh:
+      enabled: true
+      interval: 30s
+      # Watching one sentinel key is cheaper than polling every key: the controller re-reads the whole
+      # selection only when this value changes.
+      monitoring:
+        keyValues:
+          - key: CONFIG_VERSION
+  secret:
+    target:
+      secretName: vacation-planner-appconfig-secrets
+    # Repeated deliberately: resolving a Key Vault reference is a separate data-plane call to the vault,
+    # and the provider authenticates it with its own credential rather than reusing the store's.
+    auth:
+      workloadIdentity:
+        serviceAccountName: vacation-planner-appconfig-sa
