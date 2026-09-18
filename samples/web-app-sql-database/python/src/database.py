@@ -132,15 +132,20 @@ class SqlHelper:
             f"Server=tcp:{self.server},1433;"
             f"Database={self.database};"
             f"Encrypt=yes;"
-            f"TrustServerCertificate=yes;"
             f"Connection Timeout={self.connection_timeout};"
         )
         
-        # TrustServerCertificate=yes tells the ODBC driver to accept self-signed certificates without verification
-        # This is appropriate for:
-        # - Local development with Docker containers
-        # - Testing environments with self-signed certificates
-        # - Internal networks where you control the SQL Server
+        # TrustServerCertificate is deliberately absent: its default is already "no" in ODBC Driver 18,
+        # so the driver validates the server certificate, which is what Microsoft recommends
+        # (https://learn.microsoft.com/sql/connect/odbc/major-version-differences#encryption-changes).
+        # That works against Azure SQL Database and against LocalStack for Azure alike, because the
+        # emulator serves a publicly trusted certificate for the host name it returns in
+        # fullyQualifiedDomainName. If LocalStack could not download that certificate (for example
+        # with SKIP_SSL_CERT_DOWNLOAD=1) it serves one issued by the LocalStack root certificate
+        # authority instead: install that authority in the client's trust store, which keeps both
+        # encryption and validation. TrustServerCertificate=yes is a last resort, because it stops
+        # the driver validating the certificate at all and exposes the connection to an
+        # adversary-in-the-middle.
 
         if not self.use_azure_credential:
             # Traditional SQL authentication
