@@ -38,7 +38,8 @@ pod_cidr="192.168.0.0/16"
 dns_service_ip="172.16.0.10"
 service_cidr="172.16.0.0/16"
 
-aad_profile_admin_group_object_ids="53b42cac-2058-4fc9-8ee2-b29f7ad797d7" # Smurf Team group
+# Object ID of the Microsoft Entra ID Admin group
+aad_profile_admin_group_object_ids="<your-admin-group-object-id>" 
 
 # Log Analytics
 log_analytics_name="$prefix-log-analytics-$suffix"
