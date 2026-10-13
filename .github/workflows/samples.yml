@@ -54,9 +54,11 @@ jobs:
           lstk start --type azure --non-interactive
           lstk az start-interception
 
+      # The script prompts for the network configuration and both node pool sizes:
+      # pick option 1 (Azure network plugin and policy) and keep the default sizes
       - name: Create the AKS cluster
         working-directory: scripts
-        run: ./01-system-assigned-managed-identity.sh
+        run: printf '1\n\n\n' | ./01-system-assigned-managed-identity.sh
 
       - name: Deploy the sample
         working-directory: samples/${{ matrix.sample }}/python/scripts

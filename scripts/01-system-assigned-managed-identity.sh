@@ -83,7 +83,7 @@ ok=0
 
 # Print the menu
 echo "===================================="
-echo "Run Docker Container (1-3): "
+echo "Select the network configuration (1-3): "
 echo "===================================="
 options=(
   "Azure Network Plugin + Azure Network Policy"
