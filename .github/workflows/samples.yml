@@ -1,0 +1,84 @@
+name: Test samples on LocalStack for Azure
+
+# Creates the AKS cluster on the LocalStack for Azure emulator, deploys each sample's
+# Python web app with its numbered scripts, and checks the app end to end with
+# tests/test-vacation-planner.sh.
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  sample:
+    name: ${{ matrix.sample }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        sample:
+          # Data in a StatefulSet inside the cluster: exercises AKS, ACR and the workload itself
+          - web-app-in-cluster-postgresql
+          # Data in an emulated Azure service: exercises a pod calling Azure Blob Storage
+          - web-app-blob-storage
+    env:
+      SAMPLE: ${{ matrix.sample }}
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install lstk
+        run: npm install -g @localstack/lstk
+
+      - name: Create the SSH key the cluster script provisions the node pools with
+        run: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa -q
+
+      - name: Start the LocalStack for Azure emulator
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+        run: |
+          lstk start --type azure --non-interactive
+          lstk az start-interception
+
+      - name: Create the AKS cluster
+        working-directory: scripts
+        run: ./01-system-assigned-managed-identity.sh
+
+      - name: Deploy the sample
+        working-directory: samples/${{ matrix.sample }}/python/scripts
+        run: |
+          ./01-deploy-resources.sh
+          ./02-build-docker-image.sh
+          ./04-push-docker-image.sh
+          ./05-deploy-app.sh
+
+      - name: Test the web app
+        run: |
+          namespace=$(sed -n "s/^NAMESPACE=\"\(.*\)\"/\1/p" "samples/$SAMPLE/python/scripts/00-variables.sh")
+          service=$(sed -n "s/^SERVICE_NAME=\"\(.*\)\"/\1/p" "samples/$SAMPLE/python/scripts/00-variables.sh")
+          ./tests/test-vacation-planner.sh "$namespace" "$service"
+
+      - name: Show cluster state and emulator logs
+        if: failure()
+        run: |
+          kubectl get pods --all-namespaces -o wide || true
+          kubectl get events --all-namespaces --sort-by=.lastTimestamp | tail -50 || true
+          for ns in $(kubectl get namespaces -o name | sed 's|namespace/||' | grep vacation-planner); do
+            kubectl describe pods --namespace "$ns" | tail -80 || true
+            kubectl logs --namespace "$ns" --all-containers --tail=100 -l "app=$ns" || true
+          done
+          lstk logs | tail -300 || true

@@ -41,8 +41,7 @@ Start the emulator and point the Azure CLI at it:
 export LOCALSTACK_AUTH_TOKEN=<your_auth_token>
 
 # Start the LocalStack Azure emulator
-IMAGE_NAME=localstack/localstack-azure localstack start -d
-localstack wait -t 60
+lstk start --type azure
 
 # Route all Azure CLI calls to the emulator
 lstk az start-interception
@@ -147,6 +146,19 @@ Then browse to [http://localhost:8080](http://localhost:8080). The exact namespa
 Both versions of the app also expose `GET /health`, the endpoint their Kubernetes liveness and readiness probes call: it returns `{"status": "ok"}` when the data service is reachable and `503` otherwise.
 
 Alternatively, you can use a terminal UI such as [k9s](https://k9scli.io/) to select the service and start a port-forward interactively (press `<shift-f>` on a selected service or pod).
+
+### Testing a deployed sample
+
+[tests/test-vacation-planner.sh](tests/test-vacation-planner.sh) checks a deployed web app end to end through its Kubernetes service: it waits for the Deployment to roll out, checks that `GET /health` reports the data service as reachable, then adds an activity through the web form, checks that the page lists it, deletes it, and checks that it is gone. Pass the sample's namespace and service name, for example:
+
+```bash
+./tests/test-vacation-planner.sh vacation-planner-blob vacation-planner-blob
+```
+
+The [Test samples on LocalStack for Azure](.github/workflows/samples.yml) workflow runs this on every pull request against the emulator. It creates the cluster with `scripts/01-system-assigned-managed-identity.sh`, then deploys and tests the Python version of two samples:
+
+- **Web App with In-Cluster PostgreSQL StatefulSet**, which covers AKS, Azure Container Registry and the workload itself without a managed data service.
+- **Web App with Azure Blob Storage**, which covers a pod calling an emulated Azure data service.
 
 ## Tutorials
 
