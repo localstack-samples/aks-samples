@@ -20,7 +20,7 @@ It contains two kinds of content:
 
 ## System & Hardware Requirements
 
-Before running the samples, ensure your host machine meets the recommended resource allocations.
+Before running the samples locally, ensure your host machine meets the recommended resource allocations.
 
 ### Resource Allocations
 
