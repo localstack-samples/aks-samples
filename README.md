@@ -18,6 +18,40 @@ It contains two kinds of content:
 - An SSH key pair at `~/.ssh/id_rsa.pub` (used to provision the AKS node pools).
 - For local deployments only: the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/), which routes Azure CLI calls to the emulator with [`lstk az`](https://docs.localstack.cloud/azure/integrations/az/).
 
+## System & Hardware Requirements
+
+Before running the samples, ensure your host machine meets the recommended resource allocations.
+
+### Resource Allocations
+
+| Resource | Minimum | Recommended | Description |
+|---|---|---|---|
+| **Memory (RAM)** | **8 GB** | **16 GB** | ~3.3 GB for the baseline cluster & LocalStack; additional headroom for workloads |
+| **Disk Space** | **20 GB** | **30 GB+** | ~6 GB for Docker container images and ~7.6 GB for persistent volumes |
+
+### Baseline Container Footprint
+
+A baseline deployment with 1 system node and 1 user node consumes approximately **3.3 GB** of memory across containers:
+
+* **k3d Server (Control Plane):** ~1.2 GB
+* **System Node:** ~0.9 GB
+* **LocalStack Azure:** ~0.6 GB
+* **User Node:** ~0.5 GB (*allow ~0.5–1.0 GB per additional node*)
+* **Azurite + k3d Load Balancer:** ~0.08 GB
+
+> [!NOTE]
+> **Additional Resource Overhead:**
+> In addition to the base AKS cluster and LocalStack emulator, each specific sample variation can deploy additional Azure resources, services, and Kubernetes workloads. Ensure you account for extra memory and disk capacity based on the specific sample scenario you execute.
+
+### Windows / WSL2 Memory Footprint
+
+On WSL2, process memory (`vmmemwsl`) may appear to expand significantly (e.g., up to 18 GB). This is typically caused by Linux page caching (`buff/cache`) from unpacking container images rather than active process memory (`free -h`). Because WSL does not immediately return cached memory to Windows, it can look much heavier than it actually is. To restrict or reclaim WSL memory usage, configure your `%USERPROFILE%\.wslconfig`:
+
+```ini
+[wsl2]
+memory=12GB
+autoMemoryReclaim=dropcache
+
 ## Run against LocalStack
 
 Every sample and tutorial in this repository runs unchanged against [LocalStack for Azure](https://docs.localstack.cloud/azure/), which emulates the Azure resource model locally, so you can iterate on a full deployment without incurring cloud costs.
