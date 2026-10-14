@@ -47,11 +47,13 @@ A baseline deployment with 1 system node and 1 user node consumes approximately 
 
 On WSL2, process memory (`vmmemwsl`) may appear to expand significantly (e.g., up to 18 GB). This is typically caused by Linux page caching (`buff/cache`) from unpacking container images rather than active process memory (`free -h`). Because WSL does not immediately return cached memory to Windows, it can look much heavier than it actually is. To restrict or reclaim WSL memory usage, configure your `%USERPROFILE%\.wslconfig`:
 
-```ini
+~~~ini
 [wsl2]
 memory=12GB
-autoMemoryReclaim=dropcache
 
+[experimental]
+autoMemoryReclaim=dropcache
+~~~
 ## Run against LocalStack
 
 Every sample and tutorial in this repository runs unchanged against [LocalStack for Azure](https://docs.localstack.cloud/azure/), which emulates the Azure resource model locally, so you can iterate on a full deployment without incurring cloud costs.
