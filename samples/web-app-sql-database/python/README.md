@@ -6,6 +6,36 @@ This sample demonstrates a Python Flask single-page web application called *Vaca
 
 The application connects to Azure SQL using a dedicated SQL login (rather than the server admin), and the deployment scripts seed the `Activities` table with a handful of sample plans so the app shows data on first load.
 
+> [!NOTE]
+> Each logical server you create runs a Microsoft SQL Server container, so you must accept the [SQL Server End-User Licensing Agreement](https://go.microsoft.com/fwlink/?LinkId=746388) before the emulator provisions one.
+> Start the emulator with `MSSQL_ACCEPT_EULA` set to `Y`:
+> 
+> ```bash
+> LOCALSTACK_MSSQL_ACCEPT_EULA=Y lstk start
+> ```
+> 
+> Host variables prefixed with `LOCALSTACK_` are forwarded to the emulator, so the container receives `MSSQL_ACCEPT_EULA=Y`.
+> 
+> To accept it once rather than on every start, add it to an environment profile in your `lstk` config:
+> 
+> ```toml
+> [[containers]]
+> type = "azure"
+> tag  = "latest"
+> port = "4566"
+> env  = ["mssql"]
+> 
+> [env.mssql]
+> MSSQL_ACCEPT_EULA = "Y"
+> ```
+> 
+> A profile's values are injected into the container directly, so the `LOCALSTACK_` prefix is not used here.
+> `lstk` reads the first `config.toml` it finds, starting with `./.lstk/config.toml` in the current directory and then `$HOME/.config/lstk/config.toml`.
+> See [Config file search order](/azure/developer-tools/running-localstack/lstk/configuration/#config-file-search-order) for the full list and [Passing environment variables to the container](/azure/developer-tools/running-localstack/lstk/configuration/#passing-environment-variables-to-the-container) for how profiles work.
+> 
+> If you start the emulator with the `docker` CLI or Docker Compose, set `MSSQL_ACCEPT_EULA=Y` directly in the container environment instead.
+> Without it, `az sql server create` fails with `(EulaNotAccepted)`.
+
 Before installing the sample, make sure to create an [Azure Kubernetes Service (AKS)](https://learn.microsoft.com/en-us/azure/aks/what-is-aks) cluster by using one of the following scripts:
 
 - [scripts/01-system-assigned-managed-identity.sh](../../../scripts/01-system-assigned-managed-identity.sh): creates the cluster using a system-assigned managed identity as its cluster identity.
