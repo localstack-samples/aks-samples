@@ -1,5 +1,20 @@
 #!/bin/bash
 
+# Check prerequisites
+missing=0
+for tool in az kubectl; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "Error: required tool '$tool' is not installed or not in PATH." >&2
+    missing=1
+  fi
+done
+if [ "$missing" -ne 0 ]; then
+  echo "Please install the missing tool(s) and re-run the script." >&2
+  echo "  az:      https://learn.microsoft.com/cli/azure/install-azure-cli" >&2
+  echo "  kubectl: https://kubernetes.io/docs/tasks/tools/ (or: az aks install-cli)" >&2
+  exit 1
+fi
+
 # Variables
 
 # Azure Kubernetes Service (AKS) cluster
