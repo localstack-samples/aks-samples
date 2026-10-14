@@ -18,7 +18,7 @@ It contains two kinds of content:
 - An SSH key pair at `~/.ssh/id_rsa.pub` (used to provision the AKS node pools).
 - For local deployments only: the [lstk CLI](https://docs.localstack.cloud/aws/developer-tools/running-localstack/lstk/), which routes Azure CLI calls to the emulator with [`lstk az`](https://docs.localstack.cloud/azure/integrations/az/).
 
-## System & Hardware Requirements
+## System Requirements
 
 Before running the samples locally, ensure your host machine meets the recommended resource allocations.
 
