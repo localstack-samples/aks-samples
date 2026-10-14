@@ -11,7 +11,7 @@ The application connects to Azure SQL using a dedicated SQL login (rather than t
 > Start the emulator with `MSSQL_ACCEPT_EULA` set to `Y`:
 > 
 > ```bash
-> LOCALSTACK_MSSQL_ACCEPT_EULA=Y lstk start
+> LOCALSTACK_MSSQL_ACCEPT_EULA=Y lstk start --type azure
 > ```
 > 
 > Host variables prefixed with `LOCALSTACK_` are forwarded to the emulator, so the container receives `MSSQL_ACCEPT_EULA=Y`.
