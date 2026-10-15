@@ -98,9 +98,9 @@ registering_extensions=()
 ok=0
 
 # Print the menu
-echo "===================================="
-echo "Run Docker Container (1-3): "
-echo "===================================="
+echo "======================================"
+echo "Select Network Plugin and Policy (1-3): "
+echo "======================================"
 options=(
 	"Azure Network Plugin + Azure Network Policy"
 	"Azure Network Plugin + Cilium Network Policy"
