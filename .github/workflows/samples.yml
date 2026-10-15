@@ -1,8 +1,10 @@
 name: Test samples on LocalStack for Azure
 
-# Creates the AKS cluster on the LocalStack for Azure emulator, deploys each sample's
-# Python web app with its numbered scripts, and checks the app end to end with
-# tests/test-vacation-planner.sh.
+# Creates the AKS cluster on the LocalStack for Azure emulator, deploys a sample's Python or .NET web
+# app with its numbered scripts, one job per app, and checks the app end to end with
+# tests/test-vacation-planner.sh. As in the Samples CI of localstack-azure-samples, a pull request or a
+# push runs the apps it changes (every app when a file all of them use changes), and a manual run can
+# choose to run every app.
 
 on:
   push:
@@ -14,26 +16,103 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      run_mode:
+        description: "'all' runs every sample, 'changed' runs only the samples with modified files"
+        required: false
+        type: choice
+        options:
+          - all
+          - changed
+        default: changed
 
 permissions: {}
 
+# A new push to the same pull request cancels the run it supersedes: with one job per sample and
+# language, a stale run would otherwise hold up to twenty runners for the length of a deployment
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
+  setup:
+    name: Select samples
+    # Pull requests from forks get no secrets, so lstk could not start the emulator there
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      has_samples: ${{ steps.select.outputs.has_samples }}
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # The full history, so that 'changed' mode can compare with the base commit
+          fetch-depth: 0
+
+      - name: Select the samples to run
+        id: select
+        env:
+          # Pull requests and pushes have no inputs: they run the samples they change
+          RUN_MODE: ${{ inputs.run_mode || 'changed' }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          # Every app a job can deploy, as samples/<sample>/<language>, so a new sample needs no change here
+          apps=$(printf '%s\n' samples/*/*/scripts/05-deploy-app.sh | sed 's|/scripts/05-deploy-app\.sh$||')
+          selected=$apps
+
+          if [ "$RUN_MODE" = changed ]; then
+            case $EVENT_NAME in
+              pull_request) base=$PR_BASE_SHA ;;
+              push) base=$PUSH_BEFORE_SHA ;;
+              *) base=origin/main ;;
+            esac
+            if git rev-parse --quiet --verify "$base^{commit}" > /dev/null; then
+              changed=$(git diff --name-only "$base...HEAD")
+              echo "Files changed since $base:"
+              echo "$changed"
+              # Every job creates the cluster with the same script and checks the app with the same test, so a
+              # change to either, or to this workflow, runs every app; otherwise an app runs when its folder changes
+              shared='^(scripts/01-system-assigned-managed-identity\.sh|tests/test-vacation-planner\.sh|\.github/workflows/samples\.yml)$'
+              if ! grep -q -E "$shared" <<< "$changed"; then
+                selected=$(while read -r app; do
+                  if grep -q "^$app/" <<< "$changed"; then echo "$app"; fi
+                done <<< "$apps")
+              fi
+            else
+              # A push that creates the branch or rewrites its history leaves no base commit to compare with
+              echo "Base commit '$base' not found: running every sample"
+            fi
+          fi
+
+          matrix=$(jq -n -R -c '[inputs | select(length > 0) | split("/") | {sample: .[1], language: .[2]}] | {include: .}' <<< "$selected")
+          echo "Samples to run: $(jq -r '[.include[] | "\(.sample) (\(.language))"] | if length > 0 then join(", ") else "none" end' <<< "$matrix")"
+          {
+            echo "matrix=$matrix"
+            echo "has_samples=$(jq '.include | length > 0' <<< "$matrix")"
+          } >> "$GITHUB_OUTPUT"
+
   sample:
-    name: ${{ matrix.sample }}
+    name: ${{ matrix.sample }} (${{ matrix.language }})
+    needs: setup
+    # Skip the job when the run changes no sample
+    if: needs.setup.outputs.has_samples == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      matrix:
-        sample:
-          # Data in a StatefulSet inside the cluster: exercises AKS, ACR and the workload itself
-          - web-app-in-cluster-postgresql
-          # Data in an emulated Azure service: exercises a pod calling Azure Blob Storage
-          - web-app-blob-storage
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     env:
       SAMPLE: ${{ matrix.sample }}
+      LANGUAGE: ${{ matrix.language }}
 
     steps:
       - name: Check out repo
@@ -42,7 +121,19 @@ jobs:
           persist-credentials: false
 
       - name: Install lstk
-        run: npm install -g @localstack/lstk
+        # Pinned like actions/checkout, so an lstk release cannot change every run at once: bump it deliberately
+        run: npm install -g @localstack/lstk@1.4.0
+
+      - name: Install sqlcmd
+        # The Azure SQL Database sample seeds its database with sqlcmd, which the runner image does not ship
+        if: matrix.sample == 'web-app-sql-database'
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null
+          curl -fsSL "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list" | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
 
       - name: Create the SSH key the cluster script provisions the node pools with
         run: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa -q
@@ -61,7 +152,11 @@ jobs:
         run: printf '1\n\n\n' | ./01-system-assigned-managed-identity.sh
 
       - name: Deploy the sample
-        working-directory: samples/${{ matrix.sample }}/python/scripts
+        working-directory: samples/${{ matrix.sample }}/${{ matrix.language }}/scripts
+        env:
+          # Answer the Azure Files sample's two provisioning menus; the other samples do not read these
+          PROVISIONING_MODE: static
+          FILE_SHARE_PROTOCOL: smb
         run: |
           ./01-deploy-resources.sh
           ./02-build-docker-image.sh
@@ -70,8 +165,9 @@ jobs:
 
       - name: Test the web app
         run: |
-          namespace=$(sed -n "s/^NAMESPACE=\"\(.*\)\"/\1/p" "samples/$SAMPLE/python/scripts/00-variables.sh")
-          service=$(sed -n "s/^SERVICE_NAME=\"\(.*\)\"/\1/p" "samples/$SAMPLE/python/scripts/00-variables.sh")
+          variables="samples/$SAMPLE/$LANGUAGE/scripts/00-variables.sh"
+          namespace=$(sed -n "s/^NAMESPACE=\"\(.*\)\"/\1/p" "$variables")
+          service=$(sed -n "s/^SERVICE_NAME=\"\(.*\)\"/\1/p" "$variables")
           ./tests/test-vacation-planner.sh "$namespace" "$service"
 
       - name: Show cluster state and emulator logs

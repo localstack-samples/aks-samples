@@ -149,16 +149,13 @@ Alternatively, you can use a terminal UI such as [k9s](https://k9scli.io/) to se
 
 ### Testing a deployed sample
 
-[tests/test-vacation-planner.sh](tests/test-vacation-planner.sh) checks a deployed web app end to end through its Kubernetes service: it waits for the Deployment to roll out, checks that `GET /health` reports the data service as reachable, then adds an activity through the web form, checks that the page lists it, deletes it, and checks that it is gone. Pass the sample's namespace and service name, for example:
+[tests/test-vacation-planner.sh](tests/test-vacation-planner.sh) checks a deployed web app end to end through its Kubernetes service: it waits for the Deployment to roll out, checks that `GET /health` reports the data service as reachable, then adds an activity through the web form, checks that the page lists it, deletes it, and checks that it is gone while a second activity stays listed. It drives both the Python (Flask) and the .NET (Razor Pages) apps. Pass the sample's namespace and service name, for example:
 
 ```bash
 ./tests/test-vacation-planner.sh vacation-planner-blob vacation-planner-blob
 ```
 
-The [Test samples on LocalStack for Azure](.github/workflows/samples.yml) workflow runs this on every pull request against the emulator. It creates the cluster with `scripts/01-system-assigned-managed-identity.sh`, then deploys and tests the Python version of two samples:
-
-- **Web App with In-Cluster PostgreSQL StatefulSet**, which covers AKS, Azure Container Registry and the workload itself without a managed data service.
-- **Web App with Azure Blob Storage**, which covers a pod calling an emulated Azure data service.
+The [Test samples on LocalStack for Azure](.github/workflows/samples.yml) workflow runs this against the emulator, one job per sample app, in Python and .NET. Each job creates the cluster with `scripts/01-system-assigned-managed-identity.sh`, deploys the app with its numbered scripts, and runs the test. A pull request or a push to `main` runs the apps whose folders it changes, and all 20 when it changes the cluster script, the test or the workflow. A manual run tests the changed apps by default, or all 20 with `run_mode: all`.
 
 ## Tutorials
 

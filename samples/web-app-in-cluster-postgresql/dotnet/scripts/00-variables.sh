@@ -1,7 +1,7 @@
 # Variables
 
 # Azure Resources
-PREFIX='zeus'
+PREFIX='local'
 SUFFIX='test'
 LOCATION='italynorth'
 RESOURCE_GROUP_NAME="${PREFIX}-rg"
