@@ -141,6 +141,9 @@ jobs:
       - name: Start the LocalStack for Azure emulator
         env:
           LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          # lstk forwards LOCALSTACK_-prefixed variables to the emulator. The Azure SQL Database sample
+          # needs the SQL Server EULA accepted, as its README and the localstack-azure-samples CI do
+          LOCALSTACK_MSSQL_ACCEPT_EULA: "Y"
         run: |
           lstk start --type azure --non-interactive
           lstk az start-interception

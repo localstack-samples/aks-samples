@@ -143,6 +143,7 @@ fi
 
 echo "Creating SQL login [$DATABASE_USER_NAME] on server [$SQL_SERVER_FQDN]..."
 sqlcmd -S "$SQL_SERVER_FQDN" \
+	-N -C \
 	-U "$ADMIN_USER" \
 	-P "$ADMIN_PASSWORD" \
 	-d master \
@@ -157,6 +158,7 @@ fi
 
 echo "Creating database user [$DATABASE_USER_NAME] in database [$SQL_DATABASE_NAME]..."
 sqlcmd -S "$SQL_SERVER_FQDN" \
+	-N -C \
 	-U "$ADMIN_USER" \
 	-P "$ADMIN_PASSWORD" \
 	-d "$SQL_DATABASE_NAME" \
@@ -171,6 +173,7 @@ fi
 
 echo "Granting roles db_datareader, db_datawriter, db_ddladmin to [$DATABASE_USER_NAME]..."
 sqlcmd -S "$SQL_SERVER_FQDN" \
+	-N -C \
 	-U "$ADMIN_USER" \
 	-P "$ADMIN_PASSWORD" \
 	-d "$SQL_DATABASE_NAME" \
@@ -185,6 +188,7 @@ fi
 
 echo "Creating table dbo.Activities in database [$SQL_DATABASE_NAME]..."
 sqlcmd -S "$SQL_SERVER_FQDN" \
+	-N -C \
 	-U "$ADMIN_USER" \
 	-P "$ADMIN_PASSWORD" \
 	-d "$SQL_DATABASE_NAME" \
@@ -200,6 +204,7 @@ fi
 # Insert data
 echo "Inserting test data into [Activities] table..."
 sqlcmd -S "$SQL_SERVER_FQDN" \
+	-N -C \
 	-d "$SQL_DATABASE_NAME" \
 	-U "$DATABASE_USER_NAME" \
 	-P "$DATABASE_USER_PASSWORD" \
@@ -228,6 +233,7 @@ fi
 # Query data
 echo "Querying test data from [Activities] table..."
 sqlcmd -S "$SQL_SERVER_FQDN" \
+	-N -C \
 	-d "$SQL_DATABASE_NAME" \
 	-U "$DATABASE_USER_NAME" \
 	-P "$DATABASE_USER_PASSWORD" \
