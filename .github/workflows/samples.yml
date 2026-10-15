@@ -144,6 +144,10 @@ jobs:
           # lstk forwards LOCALSTACK_-prefixed variables to the emulator. The Azure SQL Database sample
           # needs the SQL Server EULA accepted, as its README and the localstack-azure-samples CI do
           LOCALSTACK_MSSQL_ACCEPT_EULA: "Y"
+          # The emulator looks up the k3d release behind each AKS cluster on api.github.com. Anonymous
+          # calls share the runner IP's 60 requests an hour, which twenty parallel jobs can exhaust, so pass
+          # the run's own read-only token, as the localstack-azure-samples CI does
+          LOCALSTACK_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
           lstk start --type azure --non-interactive
           lstk az start-interception
