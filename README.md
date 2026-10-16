@@ -129,6 +129,12 @@ cd scripts
 
 The [scripts/](scripts/) folder also contains optional add-on installers you can run once the cluster is up, for example [02-install-prometheus.sh](scripts/02-install-prometheus.sh), [03-install-nginx-ingress-controller.sh](scripts/03-install-nginx-ingress-controller.sh), [04-install-gateway-api.sh](scripts/04-install-gateway-api.sh), [05-install-nginx-gateway-fabric.sh](scripts/05-install-nginx-gateway-fabric.sh), and [06-install-cert-manager.sh](scripts/06-install-cert-manager.sh).
 
+> [!NOTE]
+> The first time you create an AKS cluster, the emulator downloads the container images the cluster needs, about 1.1 to 1.5 GB depending on the network policy option.
+> Depending on your connection, this can take 10 to 15 minutes.
+> To follow the downloads, run `docker events --filter type=image --filter event=pull` in another terminal.
+> The images stay in your Docker image cache, so later clusters reuse them, even after an emulator restart, and are provisioned much faster.
+
 ## Samples
 
 Every sample deploys the same *Vacation Planner* web app and differs only in the Azure data service that persists the activity data behind it, listed in the table below. Keeping the application identical makes the comparison the point: what changes from one sample to the next is the data service, its provisioning, and how the app authenticates to it.
