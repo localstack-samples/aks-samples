@@ -95,14 +95,18 @@ For more information, see [Azure CLI interception](https://docs.localstack.cloud
 
 ## Create an Azure Kubernetes Service (AKS) cluster
 
-Before deploying any sample you must first provision an AKS cluster. Two interchangeable scripts are provided under [scripts/](scripts/); both produce an equivalent cluster and differ only in the type of managed identity assigned to the cluster:
+Before deploying any sample you must first provision an AKS cluster. Four scripts under [scripts/](scripts/) create it; they all produce the `local-aks-test` cluster the samples expect and differ in how much they provision around it:
 
 | Script | Cluster identity | When to use |
 | ------ | ---------------- | ----------- |
-| [scripts/01-system-assigned-managed-identity.sh](scripts/01-system-assigned-managed-identity.sh) | System-assigned managed identity | Simplest option. Azure creates and manages the identity lifecycle together with the cluster. |
-| [scripts/01-user-assigned-managed-identity.sh](scripts/01-user-assigned-managed-identity.sh) | User-assigned managed identity | Use when you need a stable, pre-created identity that can be reused across resources and granted role assignments ahead of time. |
+| [scripts/01-basic-cluster.sh](scripts/01-basic-cluster.sh) | System-assigned managed identity | Fastest and cheapest: no questions, one node, Workload ID and the container registry. Enough for the default path of every sample, so a good fit for demos. |
+| [scripts/01-configurable-cluster.sh](scripts/01-configurable-cluster.sh) | System-assigned or user-assigned, your choice | Asks which optional features to provision, or reads the answers from environment variables. Pressing Enter at every question provisions the same features as the two scripts below. |
+| [scripts/01-system-assigned-managed-identity.sh](scripts/01-system-assigned-managed-identity.sh) | System-assigned managed identity | The full, production-like cluster. Azure creates and manages the identity lifecycle together with the cluster. |
+| [scripts/01-user-assigned-managed-identity.sh](scripts/01-user-assigned-managed-identity.sh) | User-assigned managed identity | The full cluster, with a stable, pre-created identity that can be reused across resources and granted role assignments ahead of time. |
 
-Both scripts are idempotent: they check whether each resource already exists before creating it, so they can be safely re-run. They provision the following building blocks:
+[scripts/README.md](scripts/README.md) details what each script provisions, which samples need which feature, and the variables of the configurable script.
+
+All four scripts are idempotent: they check whether each resource already exists before creating it, so they can be safely re-run. The two managed-identity scripts, and the configurable one with every default, provision the following building blocks:
 
 - A resource group and a Log Analytics workspace (wired to the cluster through the monitoring add-on / Azure Monitor for containers).
 - A dedicated virtual network (`10.0.0.0/8`) with three subnets: `SystemSubnet` (system node pool), `UserSubnet` (user node pool), and `AzureBastionSubnet`.
@@ -118,13 +122,13 @@ Both scripts are idempotent: they check whether each resource already exists bef
 
 The `01-user-assigned-managed-identity.sh` script additionally creates a user-assigned managed identity, assigns it to the cluster (`--assign-identity`), and grants it the Contributor role on the node resource group and the Network Contributor role on the virtual network. The system-assigned variant grants Network Contributor on the virtual network to the auto-created cluster identity.
 
-Both scripts finish by running `az aks get-credentials`, which merges the cluster context into your local `kubeconfig` so `kubectl` is ready to use.
+All four scripts finish by running `az aks get-credentials`, which merges the cluster context into your local `kubeconfig` so `kubectl` is ready to use.
 
-> Edit the variables at the top of the chosen script (`prefix`, `suffix`, `location`, node sizes, `aad_profile_admin_group_object_ids`, and so on) to match your environment before running it.
+> Edit the variables at the top of the chosen script (`prefix`, `suffix`, `location`, node sizes, `aad_profile_admin_group_object_ids`, and so on) to match your environment before running it. The configurable script takes the Entra ID admin groups from `AAD_ADMIN_GROUP_OBJECT_IDS` instead.
 
 ```bash
 cd scripts
-./01-system-assigned-managed-identity.sh   # or ./01-user-assigned-managed-identity.sh
+./01-basic-cluster.sh   # or ./01-configurable-cluster.sh, ./01-system-assigned-managed-identity.sh, ./01-user-assigned-managed-identity.sh
 ```
 
 The [scripts/](scripts/) folder also contains optional add-on installers you can run once the cluster is up, for example [02-install-prometheus.sh](scripts/02-install-prometheus.sh), [03-install-nginx-ingress-controller.sh](scripts/03-install-nginx-ingress-controller.sh), [04-install-gateway-api.sh](scripts/04-install-gateway-api.sh), [05-install-nginx-gateway-fabric.sh](scripts/05-install-nginx-gateway-fabric.sh), and [06-install-cert-manager.sh](scripts/06-install-cert-manager.sh).
