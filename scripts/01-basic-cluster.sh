@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # Create the smallest, fastest AKS cluster for demos, without asking anything: a system-assigned identity, Azure CNI
-# Overlay with the Azure network policy, one node, Microsoft Entra Workload ID, Microsoft Entra ID authentication with
-# Azure RBAC, Advanced Container Networking Services and the attached container registry. To save provisioning time,
+# Overlay with the Azure network policy, one node that the cluster autoscaler can grow to three, Microsoft Entra Workload
+# ID, Microsoft Entra ID authentication with Azure RBAC, Advanced Container Networking Services and the attached
+# container registry. To save provisioning time,
 # the Azure Files and Azure Disk CSI drivers and the CSI snapshot controller are turned off, so
 # samples/web-app-file-storage and samples/web-app-in-cluster-postgresql do not run on this cluster. There is no custom
 # virtual network, Bastion, Key Vault, Log Analytics, user node pool, KEDA or Gateway API either: create any of those
@@ -52,8 +53,11 @@ dns_service_ip="172.16.0.10"
 service_cidr="172.16.0.0/16"
 
 # Node count, node size, and ssh key location for AKS nodes. Without the key file the cluster is created with
-# --no-ssh-key: az aks create refuses to run with neither.
+# --no-ssh-key: az aks create refuses to run with neither. The cluster autoscaler keeps the node pool between min_count
+# and max_count nodes, as in the original scripts.
 node_count=1
+min_count=1
+max_count=3
 max_pods=100
 node_size="Standard_D4ds_v5"
 os_type="Linux"
@@ -68,7 +72,8 @@ usage() {
 Usage: ./01-basic-cluster.sh [--dry-run] [--yes] [--help]
 
 Creates the [$aks_cluster_name] AKS cluster in the [$resource_group_name] resource group with the fewest resources:
-one node, Workload ID, Entra ID with Azure RBAC and the attached [$acr_name] container registry. The Azure Files and
+one node that the cluster autoscaler can grow to $max_count, Workload ID, Entra ID with Azure RBAC and the attached
+[$acr_name] container registry. The Azure Files and
 Azure Disk CSI drivers and the CSI snapshot controller are turned off to save provisioning time.
 
 Set AAD_ADMIN_GROUP_OBJECT_IDS to the object IDs of the Entra ID admin groups (required on Azure).
@@ -209,7 +214,7 @@ print_summary() {
 	summary_line "Cluster identity" "system"
 	summary_line "Network" "1 (Azure CNI Overlay + Azure network policy)"
 	summary_line "System pool nodes" "$node_count"
-	summary_line "Cluster autoscaler" "no"
+	summary_line "Cluster autoscaler" "yes"
 	summary_line "Workload ID" "yes"
 	summary_line "Key Vault + CSI secrets provider" "no"
 	summary_line "Monitoring (Container Insights)" "no"
@@ -347,7 +352,7 @@ check_existing_cluster() {
 	compare_setting "Cluster identity" "$cluster_identity" system
 	compare_setting "Network" "${fields[1]}/${fields[2]}/${fields[3]}/${fields[4]}" \
 		"$network_plugin/$network_plugin_mode/$network_policy/$network_dataplane"
-	compare_setting "Cluster autoscaler" "$(cluster_bool "${fields[6]}")" no
+	compare_setting "Cluster autoscaler" "$(cluster_bool "${fields[6]}")" yes
 	# Workload ID alone: AKS turns the OIDC issuer (fields[9]) on for every new cluster from Kubernetes 1.34, and
 	# it cannot be turned off, so it says nothing about how the cluster was created
 	compare_setting "Workload ID" "$(cluster_bool "${fields[10]}")" yes
@@ -427,7 +432,10 @@ ensure_cluster() {
 		--node-osdisk-size "$os_disk_size"
 		--node-osdisk-type "$os_disk_type"
 		--nodepool-name "$system_node_pool_name"
+		--enable-cluster-autoscaler
 		--node-count "$node_count"
+		--min-count "$min_count"
+		--max-count "$max_count"
 		--max-pods "$max_pods"
 		--location "$location"
 		--kubernetes-version "$kubernetes_version"
