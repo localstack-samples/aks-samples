@@ -676,6 +676,26 @@ cluster_pair() {
 	fi
 }
 
+# A comma-separated list of object IDs without spaces, in lower case and sorted, so that two lists compare equal
+# whatever their order and letter case
+normalize_ids() {
+	printf '%s\n' "$1" | tr ',' '\n' | awk '{ gsub(/[[:space:]]/, ""); if ($0 != "") print tolower($0) }' |
+		sort | paste -sd, -
+}
+
+# compare_admin_groups WANTED: record a difference between the Entra ID admin groups of the existing cluster and
+# WANTED, a comma-separated list of object IDs
+compare_admin_groups() {
+	local cluster_groups
+	cluster_groups=$(query "" az aks show \
+		--name "$aks_cluster_name" \
+		--resource-group "$resource_group_name" \
+		--query "join(',', aadProfile.adminGroupObjectIDs || \`[]\`)" \
+		--output tsv \
+		--only-show-errors)
+	compare_setting "Entra ID admin groups" "$(normalize_ids "$cluster_groups")" "$(normalize_ids "$1")"
+}
+
 # When the cluster already exists, stop before creating anything if it was built with different answers: most of
 # them cannot be changed on an existing cluster, and the later steps would fail half way. Sets cluster_exists.
 check_existing_cluster() {
@@ -743,6 +763,10 @@ check_existing_cluster() {
 	compare_setting "Gateway API (managed CRDs)" "$cluster_gateway" "$(yes_no "$ENABLE_GATEWAY_API")"
 	compare_setting "Entra ID + Azure RBAC" "$(cluster_pair "${fields[13]}" "${fields[14]}")" "$(yes_no "$ENABLE_ENTRA_RBAC")"
 	compare_setting "ACNS" "$(cluster_bool "${fields[15]}")" yes
+	# The admin groups only when both sides have Entra ID; otherwise the Entra ID line above already differs
+	if [[ $(cluster_bool "${fields[13]}") == yes && $ENABLE_ENTRA_RBAC == true ]]; then
+		compare_admin_groups "$AAD_ADMIN_GROUP_OBJECT_IDS"
+	fi
 
 	if ((${#differences[@]} > 0)); then
 		echo "The [$aks_cluster_name] cluster already exists with a different configuration:" >&2
