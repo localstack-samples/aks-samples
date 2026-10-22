@@ -99,6 +99,8 @@ ENABLE_CLUSTER_AUTOSCALER=${ENABLE_CLUSTER_AUTOSCALER:-}
 ENABLE_WORKLOAD_IDENTITY=${ENABLE_WORKLOAD_IDENTITY:-}
 CREATE_KEY_VAULT=${CREATE_KEY_VAULT:-}
 ENABLE_MONITORING=${ENABLE_MONITORING:-}
+ENABLE_FILE_CSI_DRIVER=${ENABLE_FILE_CSI_DRIVER:-}
+ENABLE_DISK_CSI_DRIVER=${ENABLE_DISK_CSI_DRIVER:-}
 CREATE_VNET=${CREATE_VNET:-}
 CREATE_BASTION=${CREATE_BASTION:-}
 CREATE_USER_NODE_POOL=${CREATE_USER_NODE_POOL:-}
@@ -365,6 +367,8 @@ ask_questions() {
 	ask_bool ENABLE_WORKLOAD_IDENTITY "Enable Microsoft Entra Workload ID?" true
 	ask_bool CREATE_KEY_VAULT "Create a Key Vault with the CSI secrets provider?" true
 	ask_bool ENABLE_MONITORING "Enable Container Insights with Log Analytics?" true
+	ask_bool ENABLE_FILE_CSI_DRIVER "Enable the Azure Files CSI driver?" true
+	ask_bool ENABLE_DISK_CSI_DRIVER "Enable the Azure Disk CSI driver?" true
 
 	ask_bool CREATE_VNET "Create a custom virtual network?" true
 	if [[ $CREATE_VNET == true ]]; then
@@ -495,9 +499,16 @@ print_warnings() {
 			"samples/web-app-app-configuration (Python and .NET), tutorials/keda/event-hubs, tutorials/keda/queue-storage," \
 			"tutorials/keda/service-bus and tutorials/key-vault-csi-driver/workload-identity."
 	fi
-	if [[ $CREATE_VNET == false ]]; then
+	if [[ $ENABLE_FILE_CSI_DRIVER == false ]]; then
+		echo "WARNING: without the Azure Files CSI driver, samples/web-app-file-storage does not work: it mounts its" \
+			"Azure file share through that driver."
+	elif [[ $CREATE_VNET == false ]]; then
 		echo "WARNING: without the custom virtual network, samples/web-app-file-storage works over SMB only: its NFS mode" \
 			"needs node subnets with the Microsoft.Storage service endpoint."
+	fi
+	if [[ $ENABLE_DISK_CSI_DRIVER == false ]]; then
+		echo "WARNING: without the Azure Disk CSI driver, samples/web-app-in-cluster-postgresql does not work: its" \
+			"database volume uses the managed-csi-premium storage class that driver provides."
 	fi
 	if [[ $ENABLE_ENTRA_RBAC == true && ! $AAD_ADMIN_GROUP_OBJECT_IDS =~ $guid_list_re ]]; then
 		echo "WARNING: AAD_ADMIN_GROUP_OBJECT_IDS is [$AAD_ADMIN_GROUP_OBJECT_IDS]: on Azure, set it to the object IDs of" \
@@ -515,6 +526,8 @@ print_summary() {
 	summary_line "Workload ID" "$(yes_no "$ENABLE_WORKLOAD_IDENTITY")"
 	summary_line "Key Vault + CSI secrets provider" "$(yes_no "$CREATE_KEY_VAULT")"
 	summary_line "Monitoring (Container Insights)" "$(yes_no "$ENABLE_MONITORING")"
+	summary_line "Azure Files CSI driver" "$(yes_no "$ENABLE_FILE_CSI_DRIVER")"
+	summary_line "Azure Disk CSI driver" "$(yes_no "$ENABLE_DISK_CSI_DRIVER")"
 	summary_line "Custom virtual network" "$(yes_no "$CREATE_VNET")"
 	summary_line "Azure Bastion" "$(child_value "$CREATE_VNET" "$(yes_no "$CREATE_BASTION")")"
 	summary_line "User node pool" "$(yes_no "$CREATE_USER_NODE_POOL")"
@@ -672,10 +685,10 @@ check_existing_cluster() {
 	mapfile -t fields < <(query "" az aks show \
 		--name "$aks_cluster_name" \
 		--resource-group "$resource_group_name" \
-		--query "[identity.type, networkProfile.networkPlugin, networkProfile.networkPluginMode, networkProfile.networkPolicy, networkProfile.networkDataplane, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].vnetSubnetId, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].enableAutoScaling, addonProfiles.azureKeyvaultSecretsProvider.enabled, addonProfiles.omsagent.enabled, oidcIssuerProfile.enabled, securityProfile.workloadIdentity.enabled, workloadAutoScalerProfile.keda.enabled, ingressProfile.gatewayApi.installation, aadProfile.managed, aadProfile.enableAzureRbac, networkProfile.advancedNetworking.enabled, length(agentPoolProfiles[?name=='$user_node_pool_name']), length(agentPoolProfiles[?name=='$user_node_pool_name'] | [0].availabilityZones || \`[]\`)]" \
+		--query "[identity.type, networkProfile.networkPlugin, networkProfile.networkPluginMode, networkProfile.networkPolicy, networkProfile.networkDataplane, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].vnetSubnetId, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].enableAutoScaling, addonProfiles.azureKeyvaultSecretsProvider.enabled, addonProfiles.omsagent.enabled, oidcIssuerProfile.enabled, securityProfile.workloadIdentity.enabled, workloadAutoScalerProfile.keda.enabled, ingressProfile.gatewayApi.installation, aadProfile.managed, aadProfile.enableAzureRbac, networkProfile.advancedNetworking.enabled, length(agentPoolProfiles[?name=='$user_node_pool_name']), length(agentPoolProfiles[?name=='$user_node_pool_name'] | [0].availabilityZones || \`[]\`), storageProfile.fileCsiDriver.enabled, storageProfile.diskCsiDriver.enabled]" \
 		--output tsv \
 		--only-show-errors)
-	((${#fields[@]} == 18)) || die "Failed to read the configuration of the existing [$aks_cluster_name] AKS cluster"
+	((${#fields[@]} == 20)) || die "Failed to read the configuration of the existing [$aks_cluster_name] AKS cluster"
 
 	case ${fields[0]} in
 	SystemAssigned) cluster_identity=system ;;
@@ -708,6 +721,8 @@ check_existing_cluster() {
 	compare_setting "Workload ID" "$(cluster_bool "${fields[10]}")" "$(yes_no "$ENABLE_WORKLOAD_IDENTITY")"
 	compare_setting "Key Vault + CSI secrets provider" "$(cluster_bool "${fields[7]}")" "$(yes_no "$CREATE_KEY_VAULT")"
 	compare_setting "Monitoring (Container Insights)" "$(cluster_bool "${fields[8]}")" "$(yes_no "$ENABLE_MONITORING")"
+	compare_setting "Azure Files CSI driver" "$(cluster_bool "${fields[18]}")" "$(yes_no "$ENABLE_FILE_CSI_DRIVER")"
+	compare_setting "Azure Disk CSI driver" "$(cluster_bool "${fields[19]}")" "$(yes_no "$ENABLE_DISK_CSI_DRIVER")"
 	compare_setting "Custom virtual network" "$cluster_vnet" "$(yes_no "$CREATE_VNET")"
 	# A missing user pool is fine when one is wanted: it is added below
 	if [[ $cluster_user_pool == yes ]]; then
@@ -1050,6 +1065,12 @@ build_aks_create_args() {
 		aks_create_args+=(--no-ssh-key)
 	fi
 	aks_create_args+=(--node-vm-size "$node_size")
+	if [[ $ENABLE_FILE_CSI_DRIVER == false ]]; then
+		aks_create_args+=(--disable-file-driver)
+	fi
+	if [[ $ENABLE_DISK_CSI_DRIVER == false ]]; then
+		aks_create_args+=(--disable-disk-driver)
+	fi
 	if ((${#addons[@]} > 0)); then
 		addon_list=$(
 			IFS=,
@@ -1119,9 +1140,9 @@ ensure_cluster() {
 	log "[$aks_cluster_name] aks cluster successfully created in the [$resource_group_name] resource group"
 }
 
-# Make sure the Azure Files CSI driver and the CSI snapshot controller are enabled. AKS enables both by default;
-# samples/web-app-file-storage depends on the driver, so a cluster where it was turned off is repaired. The update
-# runs only when needed, because az aks update is a long-running operation.
+# Make sure the Azure Files CSI driver and the CSI snapshot controller are enabled, when the driver is wanted. AKS
+# enables both by default; samples/web-app-file-storage depends on the driver, so a cluster where it was turned off is
+# repaired. The update runs only when needed, because az aks update is a long-running operation.
 ensure_storage_drivers() {
 	local file_csi_driver_enabled snapshot_controller_enabled
 	log "Checking if the Azure Files CSI driver is enabled on the [$aks_cluster_name] AKS cluster..."
@@ -1409,7 +1430,9 @@ main() {
 	read_resource_ids
 
 	ensure_cluster
-	ensure_storage_drivers
+	if [[ $ENABLE_FILE_CSI_DRIVER == true ]]; then
+		ensure_storage_drivers
+	fi
 	ensure_role_assignments
 	if [[ $CREATE_USER_NODE_POOL == true ]]; then
 		ensure_user_node_pool

@@ -44,7 +44,7 @@ if [[ $? != 0 ]]; then
 		--resource-group "$RESOURCE_GROUP_NAME" \
 		--location "$LOCATION" \
 		--sku "$ACR_SKU" \
-		--admin-enabled "true" \
+		--admin-enabled true \
 		--only-show-errors 1>/dev/null
 
 	if [ $? -eq 0 ]; then

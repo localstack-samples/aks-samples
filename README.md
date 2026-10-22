@@ -99,7 +99,7 @@ Before deploying any sample you must first provision an AKS cluster. Four script
 
 | Script | Cluster identity | When to use |
 | ------ | ---------------- | ----------- |
-| [scripts/01-basic-cluster.sh](scripts/01-basic-cluster.sh) | System-assigned managed identity | Fastest and cheapest: no questions, one node, Workload ID and the container registry. Enough for the default path of every sample, so a good fit for demos. |
+| [scripts/01-basic-cluster.sh](scripts/01-basic-cluster.sh) | System-assigned managed identity | Fastest and cheapest: no questions, one node, Workload ID, Entra ID with Azure RBAC and the container registry, with the Azure Files and Azure Disk CSI drivers and the snapshot controller turned off. A good fit for demos; it runs every sample except the Azure Files and in-cluster PostgreSQL ones. |
 | [scripts/01-configurable-cluster.sh](scripts/01-configurable-cluster.sh) | System-assigned or user-assigned, your choice | Asks which optional features to provision, or reads the answers from environment variables. Pressing Enter at every question provisions the same features as the two scripts below. |
 | [scripts/01-system-assigned-managed-identity.sh](scripts/01-system-assigned-managed-identity.sh) | System-assigned managed identity | The full, production-like cluster. Azure creates and manages the identity lifecycle together with the cluster. |
 | [scripts/01-user-assigned-managed-identity.sh](scripts/01-user-assigned-managed-identity.sh) | User-assigned managed identity | The full cluster, with a stable, pre-created identity that can be reused across resources and granted role assignments ahead of time. |

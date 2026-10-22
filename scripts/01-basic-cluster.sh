@@ -1,10 +1,15 @@
 #!/bin/bash
 
-# Create the smallest AKS cluster that still runs every sample's default path, without asking anything: a
-# system-assigned identity, Azure CNI Overlay with the Azure network policy, one node, Microsoft Entra Workload ID,
-# Advanced Container Networking Services and the attached container registry. There is no custom virtual network,
-# Bastion, Key Vault, Log Analytics, user node pool, KEDA, Gateway API or Entra ID integration: create those with
-# 01-configurable-cluster.sh instead.
+# Create the smallest, fastest AKS cluster for demos, without asking anything: a system-assigned identity, Azure CNI
+# Overlay with the Azure network policy, one node, Microsoft Entra Workload ID, Microsoft Entra ID authentication with
+# Azure RBAC, Advanced Container Networking Services and the attached container registry. To save provisioning time,
+# the Azure Files and Azure Disk CSI drivers and the CSI snapshot controller are turned off, so
+# samples/web-app-file-storage and samples/web-app-in-cluster-postgresql do not run on this cluster. There is no custom
+# virtual network, Bastion, Key Vault, Log Analytics, user node pool, KEDA or Gateway API either: create any of those
+# with 01-configurable-cluster.sh instead.
+#
+# Entra ID makes the cluster's admin groups the ones in AAD_ADMIN_GROUP_OBJECT_IDS (comma-separated object IDs). The
+# default is the original scripts' placeholder, which the emulator accepts; on Azure, set real group object IDs.
 #
 # The samples create their own workload identities and federated credentials when they are deployed, so the
 # cluster only needs the OIDC issuer and Workload ID enabled.
@@ -26,6 +31,12 @@ os_disk_size=50
 os_disk_type="Ephemeral"
 system_node_pool_name="system"
 user_node_pool_name="user"
+
+# Object IDs of the Microsoft Entra ID admin groups: the original scripts' placeholder unless AAD_ADMIN_GROUP_OBJECT_IDS
+# is set
+aad_profile_admin_group_object_ids=${AAD_ADMIN_GROUP_OBJECT_IDS:-"<your-admin-group-object-id>"}
+guid_re='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+guid_list_re="^$guid_re(,$guid_re)*$"
 
 # Azure Container Registry
 acr_name="${prefix}acr${suffix}"
@@ -56,16 +67,19 @@ usage() {
 	cat <<EOF
 Usage: ./01-basic-cluster.sh [--dry-run] [--yes] [--help]
 
-Creates the [$aks_cluster_name] AKS cluster in the [$resource_group_name] resource group with the fewest resources
-the samples need: one node, Workload ID and the attached [$acr_name] container registry.
+Creates the [$aks_cluster_name] AKS cluster in the [$resource_group_name] resource group with the fewest resources:
+one node, Workload ID, Entra ID with Azure RBAC and the attached [$acr_name] container registry. The Azure Files and
+Azure Disk CSI drivers and the CSI snapshot controller are turned off to save provisioning time.
+
+Set AAD_ADMIN_GROUP_OBJECT_IDS to the object IDs of the Entra ID admin groups (required on Azure).
 
 Options:
   --dry-run   Print every command instead of running it. Nothing is executed, so no az login is needed.
   --yes       Skip the confirmation prompt.
   --help      Show this help.
 
-For a custom virtual network, Bastion, Key Vault, monitoring, a user node pool, KEDA, Gateway API or Entra ID, use
-01-configurable-cluster.sh.
+For the CSI drivers, a custom virtual network, Bastion, Key Vault, monitoring, a user node pool, KEDA or Gateway API,
+use 01-configurable-cluster.sh.
 EOF
 }
 
@@ -199,6 +213,9 @@ print_summary() {
 	summary_line "Workload ID" "yes"
 	summary_line "Key Vault + CSI secrets provider" "no"
 	summary_line "Monitoring (Container Insights)" "no"
+	summary_line "Azure Files CSI driver" "no"
+	summary_line "Azure Disk CSI driver" "no"
+	summary_line "CSI snapshot controller" "no"
 	summary_line "Custom virtual network" "no"
 	summary_line "Azure Bastion" "-"
 	summary_line "User node pool" "no"
@@ -207,15 +224,21 @@ print_summary() {
 	summary_line "KEDA" "no"
 	summary_line "Gateway API (managed CRDs)" "no"
 	summary_line "NGINX Gateway Fabric + cert-manager" "-"
-	summary_line "Entra ID + Azure RBAC" "no"
-	summary_line "Entra ID admin groups" "-"
+	summary_line "Entra ID + Azure RBAC" "yes"
+	summary_line "Entra ID admin groups" "$aad_profile_admin_group_object_ids"
 	summary_line "ACNS" "yes (always)"
 	echo "Resources (existing ones are kept):"
 	echo "  - Resource group [$resource_group_name]"
 	echo "  - Container registry [$acr_name]"
 	echo "  - AKS cluster [$aks_cluster_name] with the node pool $system_node_pool_name"
-	echo "WARNING: without the custom virtual network, samples/web-app-file-storage works over SMB only: its NFS mode" \
-		"needs node subnets with the Microsoft.Storage service endpoint."
+	echo "WARNING: without the Azure Files CSI driver, samples/web-app-file-storage does not work: it mounts its" \
+		"Azure file share through that driver."
+	echo "WARNING: without the Azure Disk CSI driver, samples/web-app-in-cluster-postgresql does not work: its" \
+		"database volume uses the managed-csi-premium storage class that driver provides."
+	if [[ ! $aad_profile_admin_group_object_ids =~ $guid_list_re ]]; then
+		echo "WARNING: AAD_ADMIN_GROUP_OBJECT_IDS is [$aad_profile_admin_group_object_ids]: on Azure, set it to the object" \
+			"IDs of real Entra ID groups, or nobody can administer the cluster."
+	fi
 }
 
 confirm_or_exit() {
@@ -298,10 +321,10 @@ check_existing_cluster() {
 	mapfile -t fields < <(query "" az aks show \
 		--name "$aks_cluster_name" \
 		--resource-group "$resource_group_name" \
-		--query "[identity.type, networkProfile.networkPlugin, networkProfile.networkPluginMode, networkProfile.networkPolicy, networkProfile.networkDataplane, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].vnetSubnetId, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].enableAutoScaling, addonProfiles.azureKeyvaultSecretsProvider.enabled, addonProfiles.omsagent.enabled, oidcIssuerProfile.enabled, securityProfile.workloadIdentity.enabled, workloadAutoScalerProfile.keda.enabled, ingressProfile.gatewayApi.installation, aadProfile.managed, aadProfile.enableAzureRbac, networkProfile.advancedNetworking.enabled, length(agentPoolProfiles[?name=='$user_node_pool_name']), length(agentPoolProfiles[?name=='$user_node_pool_name'] | [0].availabilityZones || \`[]\`)]" \
+		--query "[identity.type, networkProfile.networkPlugin, networkProfile.networkPluginMode, networkProfile.networkPolicy, networkProfile.networkDataplane, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].vnetSubnetId, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].enableAutoScaling, addonProfiles.azureKeyvaultSecretsProvider.enabled, addonProfiles.omsagent.enabled, oidcIssuerProfile.enabled, securityProfile.workloadIdentity.enabled, workloadAutoScalerProfile.keda.enabled, ingressProfile.gatewayApi.installation, aadProfile.managed, aadProfile.enableAzureRbac, networkProfile.advancedNetworking.enabled, length(agentPoolProfiles[?name=='$user_node_pool_name']), length(agentPoolProfiles[?name=='$user_node_pool_name'] | [0].availabilityZones || \`[]\`), storageProfile.fileCsiDriver.enabled, storageProfile.diskCsiDriver.enabled]" \
 		--output tsv \
 		--only-show-errors)
-	((${#fields[@]} == 18)) || die "Failed to read the configuration of the existing [$aks_cluster_name] AKS cluster"
+	((${#fields[@]} == 20)) || die "Failed to read the configuration of the existing [$aks_cluster_name] AKS cluster"
 
 	case ${fields[0]} in
 	SystemAssigned) cluster_identity=system ;;
@@ -330,11 +353,13 @@ check_existing_cluster() {
 	compare_setting "Workload ID" "$(cluster_bool "${fields[10]}")" yes
 	compare_setting "Key Vault + CSI secrets provider" "$(cluster_bool "${fields[7]}")" no
 	compare_setting "Monitoring (Container Insights)" "$(cluster_bool "${fields[8]}")" no
+	compare_setting "Azure Files CSI driver" "$(cluster_bool "${fields[18]}")" no
+	compare_setting "Azure Disk CSI driver" "$(cluster_bool "${fields[19]}")" no
 	compare_setting "Custom virtual network" "$cluster_vnet" no
 	compare_setting "User node pool" "$cluster_user_pool" no
 	compare_setting "KEDA" "$(cluster_bool "${fields[11]}")" no
 	compare_setting "Gateway API (managed CRDs)" "$cluster_gateway" no
-	compare_setting "Entra ID + Azure RBAC" "$(cluster_pair "${fields[13]}" "${fields[14]}")" no
+	compare_setting "Entra ID + Azure RBAC" "$(cluster_pair "${fields[13]}" "${fields[14]}")" yes
 	compare_setting "ACNS" "$(cluster_bool "${fields[15]}")" yes
 
 	if ((${#differences[@]} > 0)); then
@@ -414,6 +439,9 @@ ensure_cluster() {
 	fi
 	aks_create_args+=(
 		--node-vm-size "$node_size"
+		--disable-file-driver
+		--disable-disk-driver
+		--disable-snapshot-controller
 		--network-dataplane "$network_dataplane"
 		--network-policy "$network_policy"
 		--network-plugin "$network_plugin"
@@ -425,6 +453,9 @@ ensure_cluster() {
 		--enable-managed-identity
 		--enable-workload-identity
 		--enable-oidc-issuer
+		--enable-aad
+		--enable-azure-rbac
+		--aad-admin-group-object-ids "$aad_profile_admin_group_object_ids"
 		--attach-acr "$acr_name"
 		--tier free
 		--auto-upgrade-channel none
@@ -438,39 +469,6 @@ ensure_cluster() {
 	run az aks create "${aks_create_args[@]}" >/dev/null ||
 		die "Failed to create [$aks_cluster_name] aks cluster in the [$resource_group_name] resource group"
 	log "[$aks_cluster_name] aks cluster successfully created in the [$resource_group_name] resource group"
-}
-
-# Make sure the Azure Files CSI driver and the CSI snapshot controller are enabled. AKS enables both by default;
-# samples/web-app-file-storage depends on the driver, so a cluster where it was turned off is repaired.
-ensure_storage_drivers() {
-	local file_csi_driver_enabled snapshot_controller_enabled
-	log "Checking if the Azure Files CSI driver is enabled on the [$aks_cluster_name] AKS cluster..."
-	file_csi_driver_enabled=$(query "true" az aks show \
-		--name "$aks_cluster_name" \
-		--resource-group "$resource_group_name" \
-		--query storageProfile.fileCsiDriver.enabled \
-		--output tsv \
-		--only-show-errors)
-	snapshot_controller_enabled=$(query "true" az aks show \
-		--name "$aks_cluster_name" \
-		--resource-group "$resource_group_name" \
-		--query storageProfile.snapshotController.enabled \
-		--output tsv \
-		--only-show-errors)
-	if [[ ${file_csi_driver_enabled,,} == true && ${snapshot_controller_enabled,,} == true ]]; then
-		log "The Azure Files CSI driver and the CSI snapshot controller are already enabled on the [$aks_cluster_name] AKS cluster"
-		return
-	fi
-	log "Enabling the Azure Files CSI driver and the CSI snapshot controller on the [$aks_cluster_name] AKS cluster..."
-	run az aks update \
-		--name "$aks_cluster_name" \
-		--resource-group "$resource_group_name" \
-		--enable-file-driver \
-		--enable-snapshot-controller \
-		--yes \
-		--only-show-errors >/dev/null ||
-		die "Failed to enable the Azure Files CSI driver on the [$aks_cluster_name] AKS cluster"
-	log "The Azure Files CSI driver and the CSI snapshot controller were successfully enabled on the [$aks_cluster_name] AKS cluster"
 }
 
 # Merge the cluster context into the local kubeconfig so kubectl is ready to use
@@ -514,7 +512,6 @@ main() {
 	ensure_resource_group
 	ensure_acr
 	ensure_cluster
-	ensure_storage_drivers
 	get_credentials
 	print_storage
 }
