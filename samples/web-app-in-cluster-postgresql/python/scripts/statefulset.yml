@@ -146,7 +146,7 @@ spec:
         fsGroup: 999       # makes the Azure disk PVC writable by postgres
       initContainers:
         - name: init-replica
-          image: postgres:16
+          image: postgres:18
           command: ["/bin/bash", "/scripts/replica-init.sh"]
           env:
             - name: PGDATA
@@ -165,7 +165,7 @@ spec:
               mountPath: /scripts
       containers:
         - name: postgres
-          image: postgres:16
+          image: postgres:18
           ports:
             - name: postgres
               containerPort: 5432

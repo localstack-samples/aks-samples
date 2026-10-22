@@ -50,7 +50,7 @@ SECRET_RETRY_SLEEP=15
 # Azure Database for PostgreSQL flexible server. Its own server, so this sample and
 # web-app-postgresql-flexible-server never share data.
 PG_SERVER_NAME="${PREFIX}-pgflex-appconfig-${SUFFIX}"
-PG_VERSION='16'
+PG_VERSION='18'
 PG_SKU_TIER='Burstable'
 PG_SKU_NAME='Standard_B1ms'
 PG_STORAGE_SIZE_GB=32
