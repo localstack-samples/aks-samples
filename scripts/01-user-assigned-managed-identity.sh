@@ -14,6 +14,11 @@ if [ "$missing" -ne 0 ]; then
   echo "  kubectl: https://kubernetes.io/docs/tasks/tools/ (or: az aks install-cli)" >&2
   exit 1
 fi
+# On Azure, the kubeconfig of a cluster with Entra ID signs in through kubelogin; the emulator's does not
+if ! command -v kubelogin >/dev/null 2>&1; then
+  echo "WARNING: kubelogin is not installed: on Azure, kubectl needs it to sign in to a cluster with Entra ID" \
+    "(install it with: az aks install-cli). The LocalStack emulator does not need it."
+fi
 
 # Variables
 
