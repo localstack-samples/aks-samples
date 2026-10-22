@@ -696,6 +696,28 @@ compare_admin_groups() {
 	compare_setting "Entra ID admin groups" "$(normalize_ids "$cluster_groups")" "$(normalize_ids "$1")"
 }
 
+# compare_pool_size LABEL POOL NODE_COUNT MIN_COUNT MAX_COUNT: record a difference in the size of a node pool of the
+# existing cluster: its autoscaler range when the autoscaler is on, since the autoscaler itself changes the node
+# count, and its node count when the autoscaler is off
+compare_pool_size() {
+	local size=() autoscaler
+	mapfile -t size < <(query "" az aks show \
+		--name "$aks_cluster_name" \
+		--resource-group "$resource_group_name" \
+		--query "agentPoolProfiles[?name=='$2'] | [0].[count, minCount, maxCount, enableAutoScaling]" \
+		--output tsv \
+		--only-show-errors)
+	((${#size[@]} == 4)) || die "Failed to read the size of the [$2] node pool of the existing [$aks_cluster_name] AKS cluster"
+	autoscaler=$(cluster_bool "${size[3]}")
+	if [[ $autoscaler != "$(yes_no "$ENABLE_CLUSTER_AUTOSCALER")" ]]; then
+		compare_setting "$1 autoscaler" "$autoscaler" "$(yes_no "$ENABLE_CLUSTER_AUTOSCALER")"
+	elif [[ $ENABLE_CLUSTER_AUTOSCALER == true ]]; then
+		compare_setting "$1 autoscaler range" "${size[1]}-${size[2]}" "$4-$5"
+	else
+		compare_setting "$1 nodes" "${size[0]}" "$3"
+	fi
+}
+
 # When the cluster already exists, stop before creating anything if it was built with different answers: most of
 # them cannot be changed on an existing cluster, and the later steps would fail half way. Sets cluster_exists.
 check_existing_cluster() {
@@ -766,6 +788,14 @@ check_existing_cluster() {
 	# The admin groups only when both sides have Entra ID; otherwise the Entra ID line above already differs
 	if [[ $(cluster_bool "${fields[13]}") == yes && $ENABLE_ENTRA_RBAC == true ]]; then
 		compare_admin_groups "$AAD_ADMIN_GROUP_OBJECT_IDS"
+	fi
+	# Node pool sizes. The system pool only when its autoscaler matches, which the autoscaler line above compares
+	if [[ $(cluster_bool "${fields[6]}") == "$(yes_no "$ENABLE_CLUSTER_AUTOSCALER")" ]]; then
+		compare_pool_size "System pool" "$system_node_pool_name" "$SYSTEM_NODE_COUNT" "$min_count" "$max_count"
+	fi
+	if [[ $cluster_user_pool == yes && $CREATE_USER_NODE_POOL == true ]]; then
+		compare_pool_size "User pool" "$user_node_pool_name" "$USER_NODE_COUNT" "$node_pool_min_count" \
+			"$node_pool_max_count"
 	fi
 
 	if ((${#differences[@]} > 0)); then
