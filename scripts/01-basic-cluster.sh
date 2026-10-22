@@ -76,7 +76,8 @@ one node that the cluster autoscaler can grow to $max_count, Workload ID, Entra 
 [$acr_name] container registry. The Azure Files and
 Azure Disk CSI drivers and the CSI snapshot controller are turned off to save provisioning time.
 
-Set AAD_ADMIN_GROUP_OBJECT_IDS to the object IDs of the Entra ID admin groups (required on Azure).
+Set AAD_ADMIN_GROUP_OBJECT_IDS to the object IDs of the Entra ID admin groups (required on Azure). On Azure, kubectl
+also needs kubelogin (az aks install-cli installs it) and your account in one of those groups.
 
 Options:
   --dry-run   Print every command instead of running it. Nothing is executed, so no az login is needed.
@@ -281,6 +282,11 @@ check_prerequisites() {
 		echo "  az:      https://learn.microsoft.com/cli/azure/install-azure-cli" >&2
 		echo "  kubectl: https://kubernetes.io/docs/tasks/tools/ (or: az aks install-cli)" >&2
 		exit 1
+	fi
+	# On Azure, the kubeconfig of a cluster with Entra ID signs in through kubelogin; the emulator's does not
+	if ! command -v kubelogin >/dev/null 2>&1; then
+		echo "WARNING: kubelogin is not installed: on Azure, kubectl needs it to sign in to a cluster with Entra ID" \
+			"(install it with: az aks install-cli). The LocalStack emulator does not need it."
 	fi
 }
 
@@ -500,7 +506,10 @@ print_storage() {
 		--output yaml \
 		--only-show-errors
 	log "Storage classes of the [$aks_cluster_name] AKS cluster:"
-	run kubectl get storageclass
+	run kubectl get storageclass ||
+		die "kubectl cannot reach the [$aks_cluster_name] cluster. On Azure, a cluster with Entra ID needs kubelogin" \
+			"(install it with: az aks install-cli) and your account in one of the admin groups" \
+			"[$aad_profile_admin_group_object_ids] or in an Azure Kubernetes Service RBAC role on the cluster."
 }
 
 main() {

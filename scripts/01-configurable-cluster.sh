@@ -632,6 +632,11 @@ check_prerequisites() {
 		echo "  helm:    https://helm.sh/docs/intro/install/" >&2
 		exit 1
 	fi
+	# On Azure, the kubeconfig of a cluster with Entra ID signs in through kubelogin; the emulator's does not
+	if [[ $ENABLE_ENTRA_RBAC == true ]] && ! command -v kubelogin >/dev/null 2>&1; then
+		echo "WARNING: kubelogin is not installed: on Azure, kubectl needs it to sign in to a cluster with Entra ID" \
+			"(install it with: az aks install-cli). The LocalStack emulator does not need it."
+	fi
 
 	# The managed Gateway API is part of the core Azure CLI from version 2.86.0: no aks-preview extension needed
 	if [[ $ENABLE_GATEWAY_API == true ]]; then
@@ -721,7 +726,10 @@ check_existing_cluster() {
 	compare_setting "Workload ID" "$(cluster_bool "${fields[10]}")" "$(yes_no "$ENABLE_WORKLOAD_IDENTITY")"
 	compare_setting "Key Vault + CSI secrets provider" "$(cluster_bool "${fields[7]}")" "$(yes_no "$CREATE_KEY_VAULT")"
 	compare_setting "Monitoring (Container Insights)" "$(cluster_bool "${fields[8]}")" "$(yes_no "$ENABLE_MONITORING")"
-	compare_setting "Azure Files CSI driver" "$(cluster_bool "${fields[18]}")" "$(yes_no "$ENABLE_FILE_CSI_DRIVER")"
+	# A Files driver that is off is fine when it is wanted: ensure_storage_drivers turns it on below
+	if [[ $(cluster_bool "${fields[18]}") == yes ]]; then
+		compare_setting "Azure Files CSI driver" yes "$(yes_no "$ENABLE_FILE_CSI_DRIVER")"
+	fi
 	compare_setting "Azure Disk CSI driver" "$(cluster_bool "${fields[19]}")" "$(yes_no "$ENABLE_DISK_CSI_DRIVER")"
 	compare_setting "Custom virtual network" "$cluster_vnet" "$(yes_no "$CREATE_VNET")"
 	# A missing user pool is fine when one is wanted: it is added below
@@ -929,9 +937,11 @@ ensure_virtual_network() {
 	if [[ $CREATE_BASTION == true ]]; then
 		ensure_subnet "$bastion_subnet_name" "$bastion_subnet_prefix"
 	fi
-	for subnet in "${node_subnets[@]}"; do
-		ensure_storage_service_endpoint "$subnet"
-	done
+	if [[ $ENABLE_FILE_CSI_DRIVER == true ]]; then
+		for subnet in "${node_subnets[@]}"; do
+			ensure_storage_service_endpoint "$subnet"
+		done
+	fi
 }
 
 # The bastion host goes into the AzureBastionSubnet created with the virtual network: Azure looks that subnet up
@@ -1381,7 +1391,14 @@ print_storage() {
 		--output yaml \
 		--only-show-errors
 	log "Storage classes of the [$aks_cluster_name] AKS cluster:"
-	run kubectl get storageclass
+	if ! run kubectl get storageclass; then
+		if [[ $ENABLE_ENTRA_RBAC == true ]]; then
+			die "kubectl cannot reach the [$aks_cluster_name] cluster. On Azure, a cluster with Entra ID needs kubelogin" \
+				"(install it with: az aks install-cli) and your account in one of the admin groups" \
+				"[$AAD_ADMIN_GROUP_OBJECT_IDS] or in an Azure Kubernetes Service RBAC role on the cluster."
+		fi
+		die "kubectl cannot reach the [$aks_cluster_name] cluster: see the kubectl error above."
+	fi
 }
 
 main() {

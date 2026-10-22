@@ -124,7 +124,7 @@ The `01-user-assigned-managed-identity.sh` script additionally creates a user-as
 
 All four scripts finish by running `az aks get-credentials`, which merges the cluster context into your local `kubeconfig` so `kubectl` is ready to use.
 
-> Edit the variables at the top of the chosen script (`prefix`, `suffix`, `location`, node sizes, `aad_profile_admin_group_object_ids`, and so on) to match your environment before running it. The configurable script takes the Entra ID admin groups from `AAD_ADMIN_GROUP_OBJECT_IDS` instead.
+> Edit the variables at the top of the chosen script (`prefix`, `suffix`, `location`, node sizes, `aad_profile_admin_group_object_ids`, and so on) to match your environment before running it. The configurable and basic scripts take the Entra ID admin groups from `AAD_ADMIN_GROUP_OBJECT_IDS` instead. On Azure, `kubectl` needs [kubelogin](https://learn.microsoft.com/en-us/azure/aks/kubelogin-authentication) to sign in to a cluster with Entra ID (`az aks install-cli` installs it), and your account must be in one of its admin groups.
 
 ```bash
 cd scripts

@@ -40,7 +40,7 @@ Each question is skipped when its variable is set. Yes/no variables accept `true
 | `ENABLE_MONITORING` | `true` | The `local-log-analytics-test` workspace and the `monitoring` add-on (Container Insights). |
 | `ENABLE_FILE_CSI_DRIVER` | `true` | The Azure Files CSI driver and its `azurefile*` storage classes. `false` passes `--disable-file-driver`. |
 | `ENABLE_DISK_CSI_DRIVER` | `true` | The Azure Disk CSI driver and its `managed-csi*` storage classes. `false` passes `--disable-disk-driver`. |
-| `CREATE_VNET` | `true` | The `local-vnet-test` virtual network with `SystemSubnet`, plus `UserSubnet` when there is a user node pool, the Microsoft.Storage service endpoint on the node subnets, and the Network Contributor role for the cluster identity. Without it, AKS creates and manages the virtual network. |
+| `CREATE_VNET` | `true` | The `local-vnet-test` virtual network with `SystemSubnet`, plus `UserSubnet` when there is a user node pool, the Microsoft.Storage service endpoint on the node subnets (only with the Azure Files CSI driver, whose NFS volumes need it), and the Network Contributor role for the cluster identity. Without it, AKS creates and manages the virtual network. |
 | `CREATE_BASTION` | `true` | Asked only with the custom virtual network: `AzureBastionSubnet`, a public IP address and the `local-bastion-test` host. |
 | `CREATE_USER_NODE_POOL` | `true` | The `user` node pool. |
 | `USER_NODE_COUNT` | `1` | Asked only with the user node pool: its number of nodes. |
@@ -49,7 +49,7 @@ Each question is skipped when its variable is set. Yes/no variables accept `true
 | `ENABLE_GATEWAY_API` | `true` | The managed Gateway API CRDs (`--enable-gateway-api`). Needs azure-cli 2.86.0 or later, and no `aks-preview` extension. |
 | `INSTALL_GATEWAY_CONTROLLERS` | `false` | Asked only with Gateway API: installs NGINX Gateway Fabric, which provides the `nginx` GatewayClass, and cert-manager with Helm. Needs `helm`. |
 | `ENABLE_ENTRA_RBAC` | `true` | Microsoft Entra ID authentication with Azure RBAC for Kubernetes authorization. |
-| `AAD_ADMIN_GROUP_OBJECT_IDS` | `<your-admin-group-object-id>` | Also read by `01-basic-cluster.sh`, which always enables Entra ID. Asked only with Entra ID: the comma-separated object IDs of the admin groups. The placeholder works on the emulator; on Azure, set real group object IDs. |
+| `AAD_ADMIN_GROUP_OBJECT_IDS` | `<your-admin-group-object-id>` | Also read by `01-basic-cluster.sh`, which always enables Entra ID. Asked only with Entra ID: the comma-separated object IDs of the admin groups. The placeholder works on the emulator; on Azure, set real group object IDs. On Azure, `kubectl` also needs [kubelogin](https://learn.microsoft.com/en-us/azure/aks/kubelogin-authentication) to sign in to a cluster with Entra ID (`az aks install-cli` installs it), and your account in one of these groups or in an Azure Kubernetes Service RBAC role on the cluster. |
 | `ASSUME_YES` | `false` | The same as `--yes`: skip the confirmation prompt. |
 | `DRY_RUN` | `false` | The same as `--dry-run`. |
 
