@@ -14,7 +14,7 @@ By default the user agent pool carries the `workload=batch` node label, the `ded
 
 ## Prerequisites
 
-- [Terraform](https://developer.hashicorp.com/terraform/install) `>= 1.9.0`. The providers are pinned in [providers.tf](providers.tf): [azurerm](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs) `4.81.0` and [azapi](https://registry.terraform.io/providers/Azure/azapi/latest/docs) `2.10.0`.
+- [Terraform](https://developer.hashicorp.com/terraform/install) `>= 1.9.0`. The providers are pinned in [providers.tf](providers.tf): [azurerm](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs) `5.10.0` and [azapi](https://registry.terraform.io/providers/Azure/azapi/latest/docs) `2.13.0`.
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) (`az`), logged in to an Azure subscription — or pointed at the LocalStack Azure emulator.
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) and, on real Azure, [kubelogin](https://azure.github.io/kubelogin/) for the Microsoft Entra ID authentication used by the Kubernetes-side validation.
 - [jq](https://jqlang.github.io/jq/) for parsing the Terraform outputs in `deploy.sh`.

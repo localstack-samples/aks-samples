@@ -44,7 +44,7 @@ if [[ $? != 0 ]]; then
 		--resource-group "$RESOURCE_GROUP_NAME" \
 		--location "$LOCATION" \
 		--sku "$ACR_SKU" \
-		--admin-enabled "true" \
+		--admin-enabled true \
 		--only-show-errors 1>/dev/null
 
 	if [ $? -eq 0 ]; then
@@ -136,6 +136,57 @@ if [[ "$EXISTS" != "true" ]]; then
 else
 	echo "Blob container [$CONTAINER_NAME] already exists."
 fi
+
+# Upload the sample activities, so the app does not start with an empty list. Each activity is a blob named
+# YYYY-MM-DD-HH-MM-SS-activity.txt holding the activity text, the format the app itself reads and writes; these
+# are the activities the web-app-file-storage sample seeds. The names are fixed, so a re-run uploads only the
+# missing ones.
+SAMPLE_ACTIVITIES=(
+	"2026-01-05-09-00-00-activity.txt|Snorkelling at Coral Bay"
+	"2026-01-05-09-05-00-activity.txt|Sunset hike to the Cape lighthouse"
+	"2026-01-05-09-10-00-activity.txt|Cooking class: pasta from scratch"
+)
+SAMPLE_ACTIVITIES_DIR=$(mktemp -d)
+
+for SAMPLE_ACTIVITY in "${SAMPLE_ACTIVITIES[@]}"; do
+	BLOB_NAME="${SAMPLE_ACTIVITY%%|*}"
+	ACTIVITY="${SAMPLE_ACTIVITY#*|}"
+
+	echo "Checking if blob [$BLOB_NAME] exists in blob container [$CONTAINER_NAME]..."
+	EXISTS=$(az storage blob exists \
+		--account-name $STORAGE_ACCOUNT_NAME \
+		--account-key $STORAGE_ACCOUNT_KEY \
+		--container-name $CONTAINER_NAME \
+		--name $BLOB_NAME \
+		--query exists \
+		--output tsv 2>/dev/null)
+
+	if [[ "$EXISTS" == "true" ]]; then
+		echo "Blob [$BLOB_NAME] already exists."
+		continue
+	fi
+
+	# The file has the blob's name, so az storage blob upload gives the blob the text/plain type of a .txt file
+	echo "Uploading sample activity [$ACTIVITY] as blob [$BLOB_NAME]..."
+	printf '%s' "$ACTIVITY" >"$SAMPLE_ACTIVITIES_DIR/$BLOB_NAME"
+	az storage blob upload \
+		--account-name $STORAGE_ACCOUNT_NAME \
+		--account-key $STORAGE_ACCOUNT_KEY \
+		--container-name $CONTAINER_NAME \
+		--name $BLOB_NAME \
+		--file "$SAMPLE_ACTIVITIES_DIR/$BLOB_NAME" \
+		--only-show-errors 1>/dev/null
+
+	if [ $? -eq 0 ]; then
+		echo "Blob [$BLOB_NAME] uploaded successfully."
+	else
+		echo "Failed to upload blob [$BLOB_NAME]."
+		rm -rf "$SAMPLE_ACTIVITIES_DIR"
+		exit 1
+	fi
+done
+
+rm -rf "$SAMPLE_ACTIVITIES_DIR"
 
 # Check if the user-assigned managed identity already exists
 echo "Checking if [$MANAGED_IDENTITY_NAME] user-assigned managed identity actually exists in the [$RESOURCE_GROUP_NAME] resource group..."

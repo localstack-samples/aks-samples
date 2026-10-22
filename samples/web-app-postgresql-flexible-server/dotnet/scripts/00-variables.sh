@@ -14,7 +14,7 @@ CURRENT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Azure Database for PostgreSQL flexible server
 PG_SERVER_NAME="${PREFIX}-pgflex-${SUFFIX}"
-PG_VERSION='16'
+PG_VERSION='18'
 PG_SKU_TIER='Burstable'
 PG_SKU_NAME='Standard_B1ms'
 PG_STORAGE_SIZE_GB=32

@@ -4,13 +4,13 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=4.81.0"
+      version = "=5.10.0"
     }
     # azapi is needed only for the Managed Gateway API installation, which azurerm
     # does not expose yet (hashicorp/terraform-provider-azurerm#31710).
     azapi = {
       source  = "azure/azapi"
-      version = "=2.10.0"
+      version = "=2.13.0"
     }
   }
 }
@@ -38,8 +38,10 @@ provider "azurerm" {
   client_id       = var.client_id
   client_secret   = var.client_secret
 
-  # The emulator has no resource-provider registration surface.
-  resource_provider_registrations = var.metadata_host == null ? null : "none"
+  # The emulator has no resource-provider registration surface. On Azure, "legacy" keeps
+  # registering the resource providers the stack needs, which azurerm 5.0 no longer does
+  # by default ("none").
+  resource_provider_registrations = var.metadata_host == null ? "legacy" : "none"
 }
 
 # azapi does not use azurerm's metadata_host discovery: when targeting the emulator
