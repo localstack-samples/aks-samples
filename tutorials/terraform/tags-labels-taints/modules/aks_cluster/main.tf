@@ -51,6 +51,12 @@ resource "azurerm_kubernetes_cluster" "aks_cluster" {
     identity_ids = [var.managed_identity_id]
   }
 
+  # Required from azurerm 5.0. Manual is the AKS default: node pools are the ones this
+  # stack defines, and node auto-provisioning stays off, as it was with azurerm 4.x.
+  node_provisioning_profile {
+    mode = "Manual"
+  }
+
   default_node_pool {
     name                        = var.system_node_pool_name
     vm_size                     = var.system_node_pool_vm_size
