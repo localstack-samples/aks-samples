@@ -25,6 +25,11 @@ on:
           - all
           - changed
         default: changed
+      windows:
+        description: "Run only the Windows job, two samples from Git Bash with MSYS_NO_PATHCONV=1, instead of the Linux matrix"
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -37,8 +42,11 @@ concurrency:
 jobs:
   setup:
     name: Select samples
-    # Pull requests from forks get no secrets, so lstk could not start the emulator there
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Pull requests from forks get no secrets, so lstk could not start the emulator there. A manual run with
+    # the windows input runs the Windows job alone; skipping this job skips the matrix
+    if: >-
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      && (github.event_name != 'workflow_dispatch' || !inputs.windows)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -187,3 +195,163 @@ jobs:
             kubectl logs --namespace "$ns" --all-containers --tail=100 -l "app=$ns" || true
           done
           lstk logs | tail -300 || true
+
+  # Runs two samples on Windows, from Git Bash with MSYS_NO_PATHCONV=1 set as the README asks Windows
+  # users to do, on manual runs with the windows input only. The emulator is a Linux image and Docker on
+  # the Windows runner runs Windows containers, so the emulator runs in Docker Engine inside a WSL 2
+  # distribution on the same runner; the Windows docker CLI, lstk and kubectl reach it through ports WSL
+  # forwards to the runner's localhost.
+  windows:
+    name: Windows (Git Bash) ${{ matrix.sample }} (${{ matrix.language }})
+    if: github.event_name == 'workflow_dispatch' && inputs.windows
+    runs-on: windows-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The Cosmos DB partition key, besides the resource IDs and the SSH key every sample needs
+          - sample: web-app-cosmosdb-nosql-api
+            language: python
+          # The sample activities, uploaded from a mktemp directory
+          - sample: web-app-blob-storage
+            language: python
+    defaults:
+      run:
+        shell: bash
+    env:
+      SAMPLE: ${{ matrix.sample }}
+      LANGUAGE: ${{ matrix.language }}
+      IMAGE: localstack/localstack-azure:latest
+      # The Docker Engine in WSL 2, for the Windows docker CLI and lstk
+      DOCKER_HOST: tcp://127.0.0.1:2375
+      # What the README asks Windows users of Git Bash and MSYS2 to export
+      MSYS_NO_PATHCONV: "1"
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Configure WSL
+        # Once a step's wsl.exe session ends, WSL stops the idle distribution after 15 seconds, and
+        # dockerd with it; -1 keeps it running for the whole job. The memory leaves room for the AKS
+        # cluster and the sample's workloads.
+        shell: pwsh
+        run: |
+          Set-Content -Path "$env:USERPROFILE\.wslconfig" -Value "[wsl2]`nmemory=12GB`n`n[general]`ninstanceIdleTimeout=-1"
+          wsl --shutdown
+
+      - name: Set up Ubuntu in WSL 2
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          wsl-shell-user: root
+          additional-packages: docker.io
+
+      - name: Start Docker Engine in WSL 2
+        # The Unix socket is what the emulator container mounts to start the cluster and its backing
+        # containers; the TCP endpoint, bound to localhost, is what WSL forwards to Windows.
+        shell: wsl-bash {0}
+        run: |
+          setsid nohup dockerd --host unix:///var/run/docker.sock --host tcp://127.0.0.1:2375 --tls=false \
+            > /var/log/dockerd.log 2>&1 < /dev/null &
+          for _ in $(seq 1 60); do
+            docker info > /dev/null 2>&1 && break
+            sleep 2
+          done
+          docker info --format 'Docker {{.ServerVersion}} on {{.OperatingSystem}}, kernel {{.KernelVersion}}'
+
+      - name: Check that the Windows docker CLI reaches it
+        run: docker version
+
+      - name: Install lstk
+        # The release the Linux job pins
+        run: npm install -g @localstack/lstk@1.4.0
+
+      - name: Install yq
+        # The deployment scripts render the Kubernetes manifests with yq, which the Windows runner image
+        # does not ship. The release and its SHA-256 are pinned.
+        env:
+          YQ_VERSION: v4.54.1
+          YQ_SHA256: b645f47ebb3a0d2fbab52998550bbd0a1706f23b5ca5f5b48e638c580bb70928
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP/bin"
+          curl --silent --show-error --fail --location --retry 3 --output yq.exe \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_windows_amd64.exe"
+          echo "${YQ_SHA256}  yq.exe" | sha256sum --check
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Create the SSH key the cluster script provisions the node pools with
+        run: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa -q
+
+      - name: Start the LocalStack for Azure emulator in WSL 2
+        # Started with the docker CLI rather than lstk: lstk on Windows would mount a Windows volume path,
+        # and no Docker socket, into the Linux engine. The two mounts are paths inside WSL, which
+        # MSYS_NO_PATHCONV keeps Git Bash from rewriting. lstk then finds the container by its name to
+        # route the Azure CLI to it.
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          # The emulator looks up the k3d release behind each AKS cluster on api.github.com, as on Linux
+          GITHUB_API_TOKEN: ${{ github.token }}
+        run: |
+          docker pull "$IMAGE"
+          docker run --detach --name localstack-azure \
+            --publish 127.0.0.1:4566:4566 --publish 127.0.0.1:443:443 \
+            --publish 127.0.0.1:4510-4559:4510-4559 \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            --volume /var/lib/localstack-azure:/var/lib/localstack \
+            --env LOCALSTACK_AUTH_TOKEN --env GITHUB_API_TOKEN --env MSSQL_ACCEPT_EULA=Y \
+            "$IMAGE"
+          ready=0
+          for _ in $(seq 1 200); do
+            if curl --silent --fail --max-time 5 http://127.0.0.1:4566/_localstack/health > /dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [[ $ready != 1 ]]; then
+            echo "::error::The emulator did not answer on 127.0.0.1:4566 within 400s"
+            docker logs --tail 100 localstack-azure
+            exit 1
+          fi
+          lstk az start-interception
+
+      # The script prompts for the network configuration and both node pool sizes:
+      # pick option 1 (Azure network plugin and policy) and keep the default sizes
+      - name: Create the AKS cluster
+        working-directory: scripts
+        run: printf '1\n\n\n' | ./01-system-assigned-managed-identity.sh
+
+      - name: Deploy the sample
+        working-directory: samples/${{ matrix.sample }}/${{ matrix.language }}/scripts
+        run: |
+          ./01-deploy-resources.sh
+          ./02-build-docker-image.sh
+          ./04-push-docker-image.sh
+          ./05-deploy-app.sh
+
+      - name: Test the web app
+        run: |
+          variables="samples/$SAMPLE/$LANGUAGE/scripts/00-variables.sh"
+          namespace=$(sed -n "s/^NAMESPACE=\"\(.*\)\"/\1/p" "$variables")
+          service=$(sed -n "s/^SERVICE_NAME=\"\(.*\)\"/\1/p" "$variables")
+          ./tests/test-vacation-planner.sh "$namespace" "$service"
+
+      - name: Show cluster state and emulator logs
+        if: failure()
+        run: |
+          kubectl get pods --all-namespaces -o wide || true
+          kubectl get events --all-namespaces --sort-by=.lastTimestamp | tail -50 || true
+          docker logs localstack-azure 2>&1 | tail -n 300 || true
+
+      - name: Get the Docker Engine log
+        if: failure()
+        shell: wsl-bash {0}
+        run: tail -n 100 /var/log/dockerd.log || true
