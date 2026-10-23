@@ -110,6 +110,7 @@ Azure values that only look like paths are rewritten too, and the commands that 
 
 With `MSYS_NO_PATHCONV=1` set, these values reach the Azure CLI exactly as written.
 The scripts convert the paths of the local files they hand to Windows programs, such as the SSH public key of the cluster scripts or the blobs the samples upload, with `cygpath` when it is available, so they keep working with the variable set.
+They also hand `curl` the Windows `NUL` device instead of `/dev/null` for the responses they discard, because the variable stops these shells from making that conversion too.
 On Linux and macOS `cygpath` does not exist, and the paths are left unchanged.
 
 Tips:
@@ -119,6 +120,7 @@ Tips:
 - Any value turns the conversion off, `0` included; run `unset MSYS_NO_PATHCONV` to turn it back on.
 - WSL runs Linux and needs no variable.
 - When you write a script that passes a local file to `az`, `kubectl`, `curl`, `jq`, `python` or `docker`, convert its path with the `native_path` helper the existing scripts define.
+- To discard what a Windows program writes to a file, such as `curl -o`, pass it `"$(null_device)"` rather than `/dev/null`, as the existing scripts do. Shell redirections such as `> /dev/null` need no change.
 
 ## Create an Azure Kubernetes Service (AKS) cluster
 
