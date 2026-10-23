@@ -26,7 +26,7 @@ on:
           - changed
         default: changed
       windows:
-        description: "Run only the Windows job, two samples from Git Bash with MSYS_NO_PATHCONV=1, instead of the Linux matrix"
+        description: "Run only the Windows job, every sample from Git Bash with MSYS_NO_PATHCONV=1, instead of the Linux matrix (run_mode does not apply)"
         required: false
         type: boolean
         default: false
@@ -42,11 +42,8 @@ concurrency:
 jobs:
   setup:
     name: Select samples
-    # Pull requests from forks get no secrets, so lstk could not start the emulator there. A manual run with
-    # the windows input runs the Windows job alone; skipping this job skips the matrix
-    if: >-
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-      && (github.event_name != 'workflow_dispatch' || !inputs.windows)
+    # Pull requests from forks get no secrets, so lstk could not start the emulator there
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -65,8 +62,9 @@ jobs:
       - name: Select the samples to run
         id: select
         env:
-          # Pull requests and pushes have no inputs: they run the samples they change
-          RUN_MODE: ${{ inputs.run_mode || 'changed' }}
+          # Pull requests and pushes have no inputs: they run the samples they change. A manual run with the
+          # windows input runs every sample, on Windows
+          RUN_MODE: ${{ inputs.windows && 'all' || inputs.run_mode || 'changed' }}
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -109,8 +107,9 @@ jobs:
   sample:
     name: ${{ matrix.sample }} (${{ matrix.language }})
     needs: setup
-    # Skip the job when the run changes no sample
-    if: needs.setup.outputs.has_samples == 'true'
+    # Skip the job when the run changes no sample, and on a manual run with the windows input, which runs the
+    # Windows job instead
+    if: needs.setup.outputs.has_samples == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.windows)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -196,28 +195,23 @@ jobs:
           done
           lstk logs | tail -300 || true
 
-  # Runs two samples on Windows, from Git Bash with MSYS_NO_PATHCONV=1 set as the README asks Windows
+  # Runs every sample on Windows, from Git Bash with MSYS_NO_PATHCONV=1 set as the README asks Windows
   # users to do, on manual runs with the windows input only. The emulator is a Linux image and Docker on
   # the Windows runner runs Windows containers, so the emulator runs in Docker Engine inside a WSL 2
   # distribution on the same runner; the Windows docker CLI, lstk and kubectl reach it through ports WSL
   # forwards to the runner's localhost.
   windows:
     name: Windows (Git Bash) ${{ matrix.sample }} (${{ matrix.language }})
-    if: github.event_name == 'workflow_dispatch' && inputs.windows
+    needs: setup
+    if: github.event_name == 'workflow_dispatch' && inputs.windows && needs.setup.outputs.has_samples == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # The Cosmos DB partition key, besides the resource IDs and the SSH key every sample needs
-          - sample: web-app-cosmosdb-nosql-api
-            language: python
-          # The sample activities, uploaded from a mktemp directory
-          - sample: web-app-blob-storage
-            language: python
+      # Every app: on a manual run with the windows input, the setup job selects all of them
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     defaults:
       run:
         shell: bash
@@ -291,6 +285,18 @@ jobs:
         # The release the Linux job pins
         run: npm install -g @localstack/lstk@1.4.0
 
+      - name: Give lstk an Azure CLI path without spaces
+        # lstk sets up the Azure CLI with `az cloud register --cloud-config <JSON>`, run through az.cmd, and
+        # cmd.exe cuts that command line at the space of "C:\Program Files" once the JSON's quotes are in it
+        # ("'C:\Program' is not recognized"), so `lstk az start-interception` (lstk 1.4.0) fails wherever the
+        # Azure CLI sits in its default folder. A junction without spaces, first on the PATH, works around it
+        # until lstk passes the JSON another way; Git Bash runs the same Azure CLI through it.
+        shell: pwsh
+        run: |
+          $cliDir = Split-Path -Parent (Split-Path -Parent (Get-Command az.cmd).Source)
+          New-Item -ItemType Junction -Path C:\azure-cli -Target $cliDir | Out-Null
+          Add-Content -Path $env:GITHUB_PATH -Value 'C:\azure-cli\wbin'
+
       - name: Install yq
         # The deployment scripts render the Kubernetes manifests with yq, which the Windows runner image
         # does not ship. The release and its SHA-256 are pinned.
@@ -304,6 +310,20 @@ jobs:
             "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_windows_amd64.exe"
           echo "${YQ_SHA256}  yq.exe" | sha256sum --check
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Install sqlcmd
+        # The Azure SQL Database sample seeds its database with sqlcmd, which the runner image does not ship:
+        # the Go sqlcmd release, pinned with its SHA-256
+        if: matrix.sample == 'web-app-sql-database'
+        env:
+          SQLCMD_VERSION: v1.10.0
+          SQLCMD_SHA256: a4c28332fcc6e497d655e53ac8f4939f4ab170f9cfd32d0fa5081b60f4d9d691
+        run: |
+          curl --silent --show-error --fail --location --retry 3 --output "$RUNNER_TEMP/sqlcmd.zip" \
+            "https://github.com/microsoft/go-sqlcmd/releases/download/${SQLCMD_VERSION}/sqlcmd-windows-amd64.zip"
+          echo "${SQLCMD_SHA256}  $RUNNER_TEMP/sqlcmd.zip" | sha256sum --check
+          unzip -o -q -j "$RUNNER_TEMP/sqlcmd.zip" sqlcmd.exe -d "$RUNNER_TEMP/bin"
+          sqlcmd --version
 
       - name: Create the SSH key the cluster script provisions the node pools with
         run: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa -q
@@ -349,6 +369,10 @@ jobs:
 
       - name: Deploy the sample
         working-directory: samples/${{ matrix.sample }}/${{ matrix.language }}/scripts
+        env:
+          # Answer the Azure Files sample's two provisioning menus, as the Linux job does
+          PROVISIONING_MODE: static
+          FILE_SHARE_PROTOCOL: smb
         run: |
           ./01-deploy-resources.sh
           ./02-build-docker-image.sh
@@ -367,6 +391,10 @@ jobs:
         run: |
           kubectl get pods --all-namespaces -o wide || true
           kubectl get events --all-namespaces --sort-by=.lastTimestamp | tail -50 || true
+          for ns in $(kubectl get namespaces -o name | sed 's|namespace/||' | grep vacation-planner); do
+            kubectl describe pods --namespace "$ns" | tail -80 || true
+            kubectl logs --namespace "$ns" --all-containers --tail=100 -l "app=$ns" || true
+          done
           docker logs localstack-azure 2>&1 | tail -n 300 || true
 
       - name: Get the Docker Engine log
