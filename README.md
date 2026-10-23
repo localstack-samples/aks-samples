@@ -93,6 +93,33 @@ For more information, see [Azure CLI interception](https://docs.localstack.cloud
 
 > The first deployment against the emulator downloads and builds container images, which takes a few minutes. Later deployments reuse them and are much faster.
 
+### Windows: Git Bash and MSYS2
+
+The scripts are written for Bash and run unchanged on Linux, macOS and WSL.
+They also run on Windows from Git Bash or from an MSYS2 shell (for example MINGW64 or UCRT64), provided you first turn off the automatic path conversion of these shells:
+
+```bash
+export MSYS_NO_PATHCONV=1
+```
+
+When Git Bash or an MSYS2 shell starts a Windows program such as the Azure CLI, `kubectl` or `docker`, it rewrites every argument that looks like an absolute POSIX path into a Windows path.
+Azure values that only look like paths are rewritten too, and the commands that receive them fail:
+
+- `--partition-key-path /username` in the Cosmos DB sample reaches `az` as `C:/Program Files/Git/username`, so creating the container fails with an invalid partition key path error.
+- Resource IDs such as `/subscriptions/<subscription-id>/resourceGroups/...`, passed to `--scope`, `--vnet-subnet-id` and similar options, become paths under the shell's installation folder, for example `C:/Program Files/Git/subscriptions/...`.
+
+With `MSYS_NO_PATHCONV=1` set, these values reach the Azure CLI exactly as written.
+The scripts convert the paths of the local files they hand to Windows programs, such as the SSH public key of the cluster scripts or the blobs the samples upload, with `cygpath` when it is available, so they keep working with the variable set.
+On Linux and macOS `cygpath` does not exist, and the paths are left unchanged.
+
+Tips:
+
+- To set the variable in every new Git Bash window, add `export MSYS_NO_PATHCONV=1` to `~/.bash_profile`, or to `~/.bashrc` if your `.bash_profile` sources it.
+- `echo $MSYSTEM` prints a value such as `MINGW64` only in these shells.
+- Any value turns the conversion off, `0` included; run `unset MSYS_NO_PATHCONV` to turn it back on.
+- WSL runs Linux and needs no variable.
+- When you write a script that passes a local file to `az`, `kubectl`, `curl`, `jq`, `python` or `docker`, convert its path with the `native_path` helper the existing scripts define.
+
 ## Create an Azure Kubernetes Service (AKS) cluster
 
 Before deploying any sample you must first provision an AKS cluster. Four scripts under [scripts/](scripts/) create it; they all produce the `local-aks-test` cluster the samples expect and differ in how much they provision around it:
