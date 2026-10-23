@@ -12,6 +12,17 @@
 
 set -euo pipefail
 
+# On Windows, Git Bash and MSYS2 shells pass a path such as /tmp/... unconverted to Windows programs
+# (az, curl, jq, python, docker) when MSYS_NO_PATHCONV=1 is set, as the README asks. cygpath, which
+# those shells provide, returns the C:/... form those programs can open; elsewhere the path is unchanged.
+native_path() {
+	if command -v cygpath >/dev/null 2>&1; then
+		cygpath -m "$1"
+	else
+		echo "$1"
+	fi
+}
+
 # Variables
 
 # Azure Kubernetes Service (AKS) cluster
@@ -67,7 +78,7 @@ log_analytics_sku="PerGB2018"
 # Node size and ssh key location for AKS nodes. Without the key file the cluster is created with --no-ssh-key:
 # az aks create refuses to run with neither.
 node_size="Standard_D4ds_v5"
-ssh_key_value="$HOME/.ssh/id_rsa.pub"
+ssh_key_value="$(native_path "$HOME/.ssh/id_rsa.pub")"
 
 # Node count variables
 min_count=1
