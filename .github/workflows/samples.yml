@@ -311,6 +311,13 @@ jobs:
           echo "${YQ_SHA256}  yq.exe" | sha256sum --check
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
+      - name: Put psql on the PATH
+        # The PostgreSQL and App Configuration samples seed their databases with psql, which comes with the
+        # PostgreSQL the Windows runner image installs off the PATH; the Linux runner image has it on the PATH
+        run: |
+          echo "$PGBIN" >> "$GITHUB_PATH"
+          "$PGBIN/psql" --version
+
       - name: Install sqlcmd
         # The Azure SQL Database sample seeds its database with sqlcmd, which the runner image does not ship:
         # the Go sqlcmd release, pinned with its SHA-256
