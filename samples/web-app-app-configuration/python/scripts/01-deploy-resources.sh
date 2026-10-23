@@ -787,12 +787,13 @@ echo "Checking that the [$AKS_CLUSTER_NAME] cluster has the OIDC issuer and Micr
 # `--output tsv` prints one value per line for a list of scalars, so the two flags are read into an
 # array rather than split on a tab. An absent securityProfile leaves the second element unset, which the
 # comparison below treats as disabled.
+# tr drops the carriage return the Azure CLI ends each line with on Windows: mapfile keeps it, even with bash's igncr option
 mapfile -t CLUSTER_FEATURES < <(az aks show \
 	--name "$AKS_CLUSTER_NAME" \
 	--resource-group "$RESOURCE_GROUP_NAME" \
 	--query "[oidcIssuerProfile.enabled, securityProfile.workloadIdentity.enabled]" \
 	--output tsv \
-	--only-show-errors 2>/dev/null)
+	--only-show-errors 2>/dev/null | tr -d '\r')
 
 if [[ ${#CLUSTER_FEATURES[@]} == 0 ]]; then
 	echo "Failed to read the [$AKS_CLUSTER_NAME] cluster in the [$RESOURCE_GROUP_NAME] resource group."
