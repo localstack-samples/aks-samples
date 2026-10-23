@@ -24,11 +24,11 @@ fi
 # (az, curl, jq, python, docker) when MSYS_NO_PATHCONV=1 is set, as the README asks. cygpath, which
 # those shells provide, returns the C:/... form those programs can open; elsewhere the path is unchanged.
 native_path() {
-	if command -v cygpath >/dev/null 2>&1; then
-		cygpath -m "$1"
-	else
-		echo "$1"
-	fi
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    echo "$1"
+  fi
 }
 
 # Variables

@@ -19,17 +19,18 @@ BASE_URL="http://localhost:$LOCAL_PORT"
 # (az, curl, jq, python, docker) when MSYS_NO_PATHCONV=1 is set, as the README asks. cygpath, which
 # those shells provide, returns the C:/... form those programs can open; elsewhere the path is unchanged.
 native_path() {
-	if command -v cygpath >/dev/null 2>&1; then
-		cygpath -m "$1"
-	else
-		echo "$1"
-	fi
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    echo "$1"
+  fi
 }
 
 kubectl rollout status "deployment/$DEPLOYMENT" --namespace "$NAMESPACE" --timeout=600s
 
 PF_LOG=$(mktemp)
-COOKIES=$(native_path "$(mktemp)")
+COOKIES=$(mktemp)
+COOKIES=$(native_path "$COOKIES")
 kubectl port-forward --namespace "$NAMESPACE" "service/$SERVICE" "$LOCAL_PORT:80" > "$PF_LOG" 2>&1 &
 PF_PID=$!
 trap 'kill "$PF_PID" 2>/dev/null || true; rm -f "$PF_LOG" "$COOKIES"' EXIT
