@@ -26,6 +26,17 @@ native_path() {
   fi
 }
 
+# Where curl discards a response body. Git Bash and MSYS2 shells hand a Windows curl /dev/null
+# unchanged when MSYS_NO_PATHCONV=1 is set, as the README asks, and it cannot open that path, so it
+# gets the NUL device instead; MSYS2's own curl, under /usr/bin, opens /dev/null as on Linux and macOS.
+null_device() {
+  if command -v cygpath >/dev/null 2>&1 && [[ "$(command -v curl)" != /usr/bin/* ]]; then
+    echo NUL
+  else
+    echo /dev/null
+  fi
+}
+
 kubectl rollout status "deployment/$DEPLOYMENT" --namespace "$NAMESPACE" --timeout=600s
 
 PF_LOG=$(mktemp)
@@ -68,7 +79,7 @@ get_page() {
 post_form() {
   local path=$1 field
   shift
-  local args=(-sS -m 30 -o /dev/null -w '%{http_code}' -b "$COOKIES" -c "$COOKIES" -X POST)
+  local args=(-sS -m 30 -o "$(null_device)" -w '%{http_code}' -b "$COOKIES" -c "$COOKIES" -X POST)
   for field in "$@"; do
     args+=(--data-urlencode "$field")
   done

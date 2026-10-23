@@ -6,6 +6,17 @@
 # A request for the claimed hostname must return 200 from the echo-server; a request for an
 # unclaimed hostname must NOT return 200 (proving the gateway makes the routing decision).
 
+# Where curl discards a response body. Git Bash and MSYS2 shells hand a Windows curl /dev/null
+# unchanged when MSYS_NO_PATHCONV=1 is set, as the README asks, and it cannot open that path, so it
+# gets the NUL device instead; MSYS2's own curl, under /usr/bin, opens /dev/null as on Linux and macOS.
+null_device() {
+  if command -v cygpath >/dev/null 2>&1 && [[ "$(command -v curl)" != /usr/bin/* ]]; then
+    echo NUL
+  else
+    echo /dev/null
+  fi
+}
+
 # Variables
 source ./00-variables.sh
 
@@ -55,7 +66,7 @@ echo "Sending a request for host [$SAMPLE_HOSTNAME] through the gateway..."
 HTTP_CODE=""
 ELAPSED=0
 while true; do
-  HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $SAMPLE_HOSTNAME" "http://127.0.0.1:${PORT_FORWARD_LOCAL_PORT}/" 2>/dev/null)
+  HTTP_CODE=$(curl -s -o "$(null_device)" -w '%{http_code}' -H "Host: $SAMPLE_HOSTNAME" "http://127.0.0.1:${PORT_FORWARD_LOCAL_PORT}/" 2>/dev/null)
   if [[ "$HTTP_CODE" == "200" ]]; then
     break
   fi
@@ -75,7 +86,7 @@ fi
 # An unclaimed hostname must not reach the backend
 UNCLAIMED_HOSTNAME="unclaimed.local"
 echo "Sending a request for the unclaimed host [$UNCLAIMED_HOSTNAME] through the gateway..."
-HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $UNCLAIMED_HOSTNAME" "http://127.0.0.1:${PORT_FORWARD_LOCAL_PORT}/" 2>/dev/null)
+HTTP_CODE=$(curl -s -o "$(null_device)" -w '%{http_code}' -H "Host: $UNCLAIMED_HOSTNAME" "http://127.0.0.1:${PORT_FORWARD_LOCAL_PORT}/" 2>/dev/null)
 if [[ "$HTTP_CODE" != "200" ]]; then
   echo "PASS: unclaimed host [$UNCLAIMED_HOSTNAME] returned HTTP [$HTTP_CODE] (not routed to the backend)"
 else
