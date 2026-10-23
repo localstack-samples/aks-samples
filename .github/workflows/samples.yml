@@ -25,6 +25,11 @@ on:
           - all
           - changed
         default: changed
+      windows:
+        description: "Run only the Windows job, every sample from Git Bash with MSYS_NO_PATHCONV=1, instead of the Linux matrix (run_mode does not apply)"
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -57,8 +62,9 @@ jobs:
       - name: Select the samples to run
         id: select
         env:
-          # Pull requests and pushes have no inputs: they run the samples they change
-          RUN_MODE: ${{ inputs.run_mode || 'changed' }}
+          # Pull requests and pushes have no inputs: they run the samples they change. A manual run with the
+          # windows input runs every sample, on Windows
+          RUN_MODE: ${{ inputs.windows && 'all' || inputs.run_mode || 'changed' }}
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -101,8 +107,9 @@ jobs:
   sample:
     name: ${{ matrix.sample }} (${{ matrix.language }})
     needs: setup
-    # Skip the job when the run changes no sample
-    if: needs.setup.outputs.has_samples == 'true'
+    # Skip the job when the run changes no sample, and on a manual run with the windows input, which runs the
+    # Windows job instead
+    if: needs.setup.outputs.has_samples == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.windows)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -187,3 +194,230 @@ jobs:
             kubectl logs --namespace "$ns" --all-containers --tail=100 -l "app=$ns" || true
           done
           lstk logs | tail -300 || true
+
+  # Runs every sample on Windows, from Git Bash with MSYS_NO_PATHCONV=1 set as the README asks Windows
+  # users to do, on manual runs with the windows input only. The emulator is a Linux image and Docker on
+  # the Windows runner runs Windows containers, so the emulator runs in Docker Engine inside a WSL 2
+  # distribution on the same runner; the Windows docker CLI, lstk and kubectl reach it through ports WSL
+  # forwards to the runner's localhost.
+  windows:
+    name: Windows (Git Bash) ${{ matrix.sample }} (${{ matrix.language }})
+    needs: setup
+    if: github.event_name == 'workflow_dispatch' && inputs.windows && needs.setup.outputs.has_samples == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      # Every app: on a manual run with the windows input, the setup job selects all of them
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      SAMPLE: ${{ matrix.sample }}
+      LANGUAGE: ${{ matrix.language }}
+      IMAGE: localstack/localstack-azure:latest
+      # The Docker Engine in WSL 2, for the Windows docker CLI and lstk
+      DOCKER_HOST: tcp://127.0.0.1:2375
+      # What the README asks Windows users of Git Bash and MSYS2 to export
+      MSYS_NO_PATHCONV: "1"
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Drop the carriage returns of Windows programs
+        # The README asks Windows users for `set -o igncr` and `export SHELLOPTS`, so that the bash of Git Bash
+        # and MSYS2 drops the carriage returns the Azure CLI and jq print from $(...) and read. Exporting
+        # SHELLOPTS here would also hand each step's own -e and pipefail to the sample scripts, so every bash
+        # turns the option on through BASH_ENV instead; a bash without the option skips the line.
+        run: |
+          printf '(set -o igncr) 2>/dev/null && set -o igncr\n' > "$RUNNER_TEMP/igncr.sh"
+          echo "BASH_ENV=$(cygpath -m "$RUNNER_TEMP/igncr.sh")" >> "$GITHUB_ENV"
+
+      - name: Configure WSL
+        # Once a step's wsl.exe session ends, WSL stops the idle distribution after 15 seconds, and
+        # dockerd with it; -1 keeps it running for the whole job. The memory leaves room for the AKS
+        # cluster and the sample's workloads.
+        # DNS tunneling, on by default, answers DNS for WSL itself, but the containers of the Docker Engine
+        # in WSL cannot reach its 10.255.255.254 resolver, so their lookups time out; without it, WSL
+        # hands out the NAT device on the host, which containers reach too.
+        shell: pwsh
+        run: |
+          Set-Content -Path "$env:USERPROFILE\.wslconfig" -Value "[wsl2]`nmemory=12GB`ndnsTunneling=false`n`n[general]`ninstanceIdleTimeout=-1"
+          wsl --shutdown
+
+      - name: Set up Ubuntu in WSL 2
+        id: wsl
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          wsl-shell-user: root
+          additional-packages: docker.io
+
+      - name: Start Docker Engine in WSL 2
+        # Installing docker.io already started a daemon on the Unix socket alone, and a second one cannot
+        # start beside it, so it is stopped and replaced by one that also listens on TCP. The Unix socket
+        # is what the emulator container mounts to start the cluster and its backing containers; the TCP
+        # endpoint, bound to localhost, is what WSL forwards to Windows. The wait asks the TCP endpoint,
+        # so the step fails when that daemon did not start.
+        shell: wsl-bash {0}
+        run: |
+          if [ -d /run/systemd/system ]; then
+            systemctl disable --now docker.socket docker.service
+          elif [ -e /var/run/docker.pid ]; then
+            kill "$(cat /var/run/docker.pid)"
+          fi
+          for _ in $(seq 1 30); do
+            [ -e /var/run/docker.pid ] || break
+            sleep 1
+          done
+          if [ -e /var/run/docker.pid ]; then
+            echo "::error::The Docker daemon that installing docker.io started is still running"
+            exit 1
+          fi
+          setsid nohup dockerd --host unix:///var/run/docker.sock --host tcp://127.0.0.1:2375 --tls=false \
+            > /var/log/dockerd.log 2>&1 < /dev/null &
+          for _ in $(seq 1 60); do
+            docker --host tcp://127.0.0.1:2375 info > /dev/null 2>&1 && break
+            sleep 2
+          done
+          docker --host tcp://127.0.0.1:2375 info \
+            --format 'Docker {{.ServerVersion}} on {{.OperatingSystem}}, kernel {{.KernelVersion}}'
+
+      - name: Check that the Windows docker CLI reaches it
+        run: docker version
+
+      - name: Install lstk
+        # The release the Linux job pins
+        run: npm install -g @localstack/lstk@1.4.0
+
+      - name: Give lstk an Azure CLI path without spaces
+        # lstk sets up the Azure CLI with `az cloud register --cloud-config <JSON>`, run through az.cmd, and
+        # cmd.exe cuts that command line at the space of "C:\Program Files" once the JSON's quotes are in it
+        # ("'C:\Program' is not recognized"), so `lstk az start-interception` (lstk 1.4.0) fails wherever the
+        # Azure CLI sits in its default folder. A junction without spaces, first on the PATH, works around it
+        # until lstk passes the JSON another way; Git Bash runs the same Azure CLI through it.
+        shell: pwsh
+        run: |
+          $cliDir = Split-Path -Parent (Split-Path -Parent (Get-Command az.cmd).Source)
+          New-Item -ItemType Junction -Path C:\azure-cli -Target $cliDir | Out-Null
+          Add-Content -Path $env:GITHUB_PATH -Value 'C:\azure-cli\wbin'
+
+      - name: Install yq
+        # The deployment scripts render the Kubernetes manifests with yq, which the Windows runner image
+        # does not ship. The release and its SHA-256 are pinned.
+        env:
+          YQ_VERSION: v4.54.1
+          YQ_SHA256: b645f47ebb3a0d2fbab52998550bbd0a1706f23b5ca5f5b48e638c580bb70928
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP/bin"
+          curl --silent --show-error --fail --location --retry 3 --output yq.exe \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_windows_amd64.exe"
+          echo "${YQ_SHA256}  yq.exe" | sha256sum --check
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Put psql on the PATH
+        # The PostgreSQL and App Configuration samples seed their databases with psql, which comes with the
+        # PostgreSQL the Windows runner image installs off the PATH; the Linux runner image has it on the PATH
+        run: |
+          echo "$PGBIN" >> "$GITHUB_PATH"
+          "$PGBIN/psql" --version
+
+      - name: Install sqlcmd
+        # The Azure SQL Database sample seeds its database with sqlcmd, which the runner image does not ship:
+        # the Go sqlcmd release, pinned with its SHA-256
+        if: matrix.sample == 'web-app-sql-database'
+        env:
+          SQLCMD_VERSION: v1.10.0
+          SQLCMD_SHA256: a4c28332fcc6e497d655e53ac8f4939f4ab170f9cfd32d0fa5081b60f4d9d691
+        run: |
+          curl --silent --show-error --fail --location --retry 3 --output "$RUNNER_TEMP/sqlcmd.zip" \
+            "https://github.com/microsoft/go-sqlcmd/releases/download/${SQLCMD_VERSION}/sqlcmd-windows-amd64.zip"
+          echo "${SQLCMD_SHA256}  $RUNNER_TEMP/sqlcmd.zip" | sha256sum --check
+          unzip -o -q -j "$RUNNER_TEMP/sqlcmd.zip" sqlcmd.exe -d "$RUNNER_TEMP/bin"
+          sqlcmd --version
+
+      - name: Create the SSH key the cluster script provisions the node pools with
+        run: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa -q
+
+      - name: Start the LocalStack for Azure emulator in WSL 2
+        # Started with the docker CLI rather than lstk: lstk on Windows would mount a Windows volume path,
+        # and no Docker socket, into the Linux engine. The two mounts are paths inside WSL, which
+        # MSYS_NO_PATHCONV keeps Git Bash from rewriting. lstk then finds the container by its name to
+        # route the Azure CLI to it.
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          # The emulator looks up the k3d release behind each AKS cluster on api.github.com, as on Linux
+          GITHUB_API_TOKEN: ${{ github.token }}
+        run: |
+          docker pull "$IMAGE"
+          docker run --detach --name localstack-azure \
+            --publish 127.0.0.1:4566:4566 --publish 127.0.0.1:443:443 \
+            --publish 127.0.0.1:4510-4559:4510-4559 \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            --volume /var/lib/localstack-azure:/var/lib/localstack \
+            --env LOCALSTACK_AUTH_TOKEN --env GITHUB_API_TOKEN --env MSSQL_ACCEPT_EULA=Y \
+            "$IMAGE"
+          ready=0
+          for _ in $(seq 1 200); do
+            if curl --silent --fail --max-time 5 http://127.0.0.1:4566/_localstack/health > /dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [[ $ready != 1 ]]; then
+            echo "::error::The emulator did not answer on 127.0.0.1:4566 within 400s"
+            docker logs --tail 100 localstack-azure
+            exit 1
+          fi
+          lstk az start-interception
+
+      # The script prompts for the network configuration and both node pool sizes:
+      # pick option 1 (Azure network plugin and policy) and keep the default sizes
+      - name: Create the AKS cluster
+        working-directory: scripts
+        run: printf '1\n\n\n' | ./01-system-assigned-managed-identity.sh
+
+      - name: Deploy the sample
+        working-directory: samples/${{ matrix.sample }}/${{ matrix.language }}/scripts
+        env:
+          # Answer the Azure Files sample's two provisioning menus, as the Linux job does
+          PROVISIONING_MODE: static
+          FILE_SHARE_PROTOCOL: smb
+        run: |
+          ./01-deploy-resources.sh
+          ./02-build-docker-image.sh
+          ./04-push-docker-image.sh
+          ./05-deploy-app.sh
+
+      - name: Test the web app
+        run: |
+          variables="samples/$SAMPLE/$LANGUAGE/scripts/00-variables.sh"
+          namespace=$(sed -n "s/^NAMESPACE=\"\(.*\)\"/\1/p" "$variables")
+          service=$(sed -n "s/^SERVICE_NAME=\"\(.*\)\"/\1/p" "$variables")
+          ./tests/test-vacation-planner.sh "$namespace" "$service"
+
+      - name: Show cluster state and emulator logs
+        if: failure()
+        run: |
+          kubectl get pods --all-namespaces -o wide || true
+          kubectl get events --all-namespaces --sort-by=.lastTimestamp | tail -50 || true
+          for ns in $(kubectl get namespaces -o name | sed 's|namespace/||' | grep vacation-planner); do
+            kubectl describe pods --namespace "$ns" | tail -80 || true
+            kubectl logs --namespace "$ns" --all-containers --tail=100 -l "app=$ns" || true
+          done
+          docker logs localstack-azure 2>&1 | tail -n 300 || true
+
+      - name: Get the Docker Engine log
+        # The wsl-bash shell exists only once WSL is set up
+        if: failure() && steps.wsl.outcome == 'success'
+        shell: wsl-bash {0}
+        run: tail -n 100 /var/log/dockerd.log || true
