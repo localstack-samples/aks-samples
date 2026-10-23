@@ -19,6 +19,17 @@
 
 set -euo pipefail
 
+# On Windows, Git Bash and MSYS2 shells pass a path such as /tmp/... unconverted to Windows programs
+# (az, curl, jq, python, docker) when MSYS_NO_PATHCONV=1 is set, as the README asks. cygpath, which
+# those shells provide, returns the C:/... form those programs can open; elsewhere the path is unchanged.
+native_path() {
+	if command -v cygpath >/dev/null 2>&1; then
+		cygpath -m "$1"
+	else
+		echo "$1"
+	fi
+}
+
 # Variables: the same names as the other cluster scripts, which every sample relies on
 
 # Azure Kubernetes Service (AKS) cluster
@@ -61,7 +72,7 @@ max_count=3
 max_pods=100
 node_size="Standard_D4ds_v5"
 os_type="Linux"
-ssh_key_value="$HOME/.ssh/id_rsa.pub"
+ssh_key_value="$(native_path "$HOME/.ssh/id_rsa.pub")"
 
 # Command-line options, also settable as DRY_RUN=true and ASSUME_YES=true
 DRY_RUN=${DRY_RUN:-false}
@@ -349,12 +360,13 @@ check_existing_cluster() {
 	fi
 	cluster_exists=true
 
+	# tr drops the carriage return the Azure CLI ends each line with on Windows: mapfile keeps it, even with bash's igncr option
 	mapfile -t fields < <(query "" az aks show \
 		--name "$aks_cluster_name" \
 		--resource-group "$resource_group_name" \
 		--query "[identity.type, networkProfile.networkPlugin, networkProfile.networkPluginMode, networkProfile.networkPolicy, networkProfile.networkDataplane, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].vnetSubnetId, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].enableAutoScaling, addonProfiles.azureKeyvaultSecretsProvider.enabled, addonProfiles.omsagent.enabled, oidcIssuerProfile.enabled, securityProfile.workloadIdentity.enabled, workloadAutoScalerProfile.keda.enabled, ingressProfile.gatewayApi.installation, aadProfile.managed, aadProfile.enableAzureRbac, networkProfile.advancedNetworking.enabled, length(agentPoolProfiles[?name=='$user_node_pool_name']), length(agentPoolProfiles[?name=='$user_node_pool_name'] | [0].availabilityZones || \`[]\`), storageProfile.fileCsiDriver.enabled, storageProfile.diskCsiDriver.enabled]" \
 		--output tsv \
-		--only-show-errors)
+		--only-show-errors | tr -d '\r')
 	((${#fields[@]} == 20)) || die "Failed to read the configuration of the existing [$aks_cluster_name] AKS cluster"
 
 	case ${fields[0]} in

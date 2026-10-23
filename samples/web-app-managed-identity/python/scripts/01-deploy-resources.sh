@@ -3,6 +3,17 @@
 # Variables
 source ./00-variables.sh
 
+# On Windows, Git Bash and MSYS2 shells pass a path such as /tmp/... unconverted to Windows programs
+# (az, curl, jq, python, docker) when MSYS_NO_PATHCONV=1 is set, as the README asks. cygpath, which
+# those shells provide, returns the C:/... form those programs can open; elsewhere the path is unchanged.
+native_path() {
+	if command -v cygpath >/dev/null 2>&1; then
+		cygpath -m "$1"
+	else
+		echo "$1"
+	fi
+}
+
 # Change the current directory to the script's directory
 cd "$CURRENT_DIR" || exit
 
@@ -146,7 +157,7 @@ SAMPLE_ACTIVITIES=(
 	"2026-01-05-09-05-00-activity.txt|Sunset hike to the Cape lighthouse"
 	"2026-01-05-09-10-00-activity.txt|Cooking class: pasta from scratch"
 )
-SAMPLE_ACTIVITIES_DIR=$(mktemp -d)
+SAMPLE_ACTIVITIES_DIR=$(native_path "$(mktemp -d)")
 
 for SAMPLE_ACTIVITY in "${SAMPLE_ACTIVITIES[@]}"; do
 	BLOB_NAME="${SAMPLE_ACTIVITY%%|*}"

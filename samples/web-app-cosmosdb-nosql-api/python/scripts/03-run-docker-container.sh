@@ -3,6 +3,17 @@
 # Variables
 source ./00-variables.sh
 
+# On Windows, Git Bash and MSYS2 shells pass a path such as /tmp/... unconverted to Windows programs
+# (az, curl, jq, python, docker) when MSYS_NO_PATHCONV=1 is set, as the README asks. cygpath, which
+# those shells provide, returns the C:/... form those programs can open; elsewhere the path is unchanged.
+native_path() {
+	if command -v cygpath >/dev/null 2>&1; then
+		cygpath -m "$1"
+	else
+		echo "$1"
+	fi
+}
+
 # Retrieve the document endpoint
 echo "Retrieving document endpoint for Cosmos DB account [$COSMOSDB_ACCOUNT_NAME]..."
 AZURECOSMOSDB_ENDPOINT=$(az cosmosdb show \
@@ -61,7 +72,7 @@ if [ -n "$LOCALSTACK_URL" ]; then
 	# on rootless / Docker Desktop / WSL2 setups, /tmp may be outside the daemon's reachable
 	# filesystem — in that case `-v` silently creates an empty directory at the destination
 	# instead of bind-mounting the file, and REQUESTS_CA_BUNDLE ends up pointing at a dir.
-	HOST_CA_PATH="$CURRENT_DIR/.localstack-ca.crt"
+	HOST_CA_PATH="$(native_path "$CURRENT_DIR/.localstack-ca.crt")"
 	# Remove the CA file on script exit (Ctrl-C, normal exit, error) so we don't leave
 	# it lying next to the script after the container stops.
 	trap 'rm -f "$HOST_CA_PATH"' EXIT

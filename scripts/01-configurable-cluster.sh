@@ -12,6 +12,17 @@
 
 set -euo pipefail
 
+# On Windows, Git Bash and MSYS2 shells pass a path such as /tmp/... unconverted to Windows programs
+# (az, curl, jq, python, docker) when MSYS_NO_PATHCONV=1 is set, as the README asks. cygpath, which
+# those shells provide, returns the C:/... form those programs can open; elsewhere the path is unchanged.
+native_path() {
+	if command -v cygpath >/dev/null 2>&1; then
+		cygpath -m "$1"
+	else
+		echo "$1"
+	fi
+}
+
 # Variables
 
 # Azure Kubernetes Service (AKS) cluster
@@ -67,7 +78,7 @@ log_analytics_sku="PerGB2018"
 # Node size and ssh key location for AKS nodes. Without the key file the cluster is created with --no-ssh-key:
 # az aks create refuses to run with neither.
 node_size="Standard_D4ds_v5"
-ssh_key_value="$HOME/.ssh/id_rsa.pub"
+ssh_key_value="$(native_path "$HOME/.ssh/id_rsa.pub")"
 
 # Node count variables
 min_count=1
@@ -701,12 +712,13 @@ compare_admin_groups() {
 # count, and its node count when the autoscaler is off
 compare_pool_size() {
 	local size=() autoscaler
+	# tr drops the carriage return the Azure CLI ends each line with on Windows: mapfile keeps it, even with bash's igncr option
 	mapfile -t size < <(query "" az aks show \
 		--name "$aks_cluster_name" \
 		--resource-group "$resource_group_name" \
 		--query "agentPoolProfiles[?name=='$2'] | [0].[count, minCount, maxCount, enableAutoScaling]" \
 		--output tsv \
-		--only-show-errors)
+		--only-show-errors | tr -d '\r')
 	((${#size[@]} == 4)) || die "Failed to read the size of the [$2] node pool of the existing [$aks_cluster_name] AKS cluster"
 	autoscaler=$(cluster_bool "${size[3]}")
 	if [[ $autoscaler != "$(yes_no "$ENABLE_CLUSTER_AUTOSCALER")" ]]; then
@@ -729,12 +741,13 @@ check_existing_cluster() {
 	fi
 	cluster_exists=true
 
+	# tr drops the carriage return the Azure CLI ends each line with on Windows: mapfile keeps it, even with bash's igncr option
 	mapfile -t fields < <(query "" az aks show \
 		--name "$aks_cluster_name" \
 		--resource-group "$resource_group_name" \
 		--query "[identity.type, networkProfile.networkPlugin, networkProfile.networkPluginMode, networkProfile.networkPolicy, networkProfile.networkDataplane, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].vnetSubnetId, agentPoolProfiles[?name=='$system_node_pool_name'] | [0].enableAutoScaling, addonProfiles.azureKeyvaultSecretsProvider.enabled, addonProfiles.omsagent.enabled, oidcIssuerProfile.enabled, securityProfile.workloadIdentity.enabled, workloadAutoScalerProfile.keda.enabled, ingressProfile.gatewayApi.installation, aadProfile.managed, aadProfile.enableAzureRbac, networkProfile.advancedNetworking.enabled, length(agentPoolProfiles[?name=='$user_node_pool_name']), length(agentPoolProfiles[?name=='$user_node_pool_name'] | [0].availabilityZones || \`[]\`), storageProfile.fileCsiDriver.enabled, storageProfile.diskCsiDriver.enabled]" \
 		--output tsv \
-		--only-show-errors)
+		--only-show-errors | tr -d '\r')
 	((${#fields[@]} == 20)) || die "Failed to read the configuration of the existing [$aks_cluster_name] AKS cluster"
 
 	case ${fields[0]} in
@@ -941,13 +954,14 @@ ensure_subnet() {
 # from a virtual network, so the Azure Files CSI driver needs this endpoint to mount an NFS volume on a node.
 ensure_storage_service_endpoint() {
 	local subnet=$1 current_service_endpoints=() service
+	# tr drops the carriage return the Azure CLI ends each line with on Windows: mapfile keeps it, even with bash's igncr option
 	mapfile -t current_service_endpoints < <(query "" az network vnet subnet show \
 		--name "$subnet" \
 		--vnet-name "$virtual_network_name" \
 		--resource-group "$resource_group_name" \
 		--query "serviceEndpoints[].service" \
 		--output tsv \
-		--only-show-errors 2>/dev/null)
+		--only-show-errors 2>/dev/null | tr -d '\r')
 	for service in "${current_service_endpoints[@]}"; do
 		if [[ $service == Microsoft.Storage ]]; then
 			log "The [Microsoft.Storage] service endpoint is already enabled on the [$subnet] subnet"
