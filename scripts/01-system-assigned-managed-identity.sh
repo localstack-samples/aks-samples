@@ -20,6 +20,17 @@ if ! command -v kubelogin >/dev/null 2>&1; then
     "(install it with: az aks install-cli). The LocalStack emulator does not need it."
 fi
 
+# On Windows, Git Bash and MSYS2 shells pass a path such as /tmp/... unconverted to Windows programs
+# (az, curl, jq, python, docker) when MSYS_NO_PATHCONV=1 is set, as the README asks. cygpath, which
+# those shells provide, returns the C:/... form those programs can open; elsewhere the path is unchanged.
+native_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    echo "$1"
+  fi
+}
+
 # Variables
 
 # Azure Kubernetes Service (AKS) cluster
@@ -66,7 +77,7 @@ log_analytics_sku="PerGB2018"
 
 # Node count, node size, and ssh key location for AKS nodes
 node_size="Standard_D4ds_v5" # Standard_D4ds_v4
-ssh_key_value="$HOME/.ssh/id_rsa.pub"
+ssh_key_value="$(native_path "$HOME/.ssh/id_rsa.pub")"
 
 # Windows nodes credentials
 windows_admin_username="azadmin"

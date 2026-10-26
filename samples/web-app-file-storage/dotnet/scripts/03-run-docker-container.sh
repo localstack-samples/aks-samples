@@ -3,6 +3,17 @@
 # Variables
 source ./00-variables.sh
 
+# On Windows, Git Bash and MSYS2 shells pass a path such as /tmp/... unconverted to Windows programs
+# (az, curl, jq, python, docker) when MSYS_NO_PATHCONV=1 is set, as the README asks. cygpath, which
+# those shells provide, returns the C:/... form those programs can open; elsewhere the path is unchanged.
+native_path() {
+	if command -v cygpath >/dev/null 2>&1; then
+		cygpath -m "$1"
+	else
+		echo "$1"
+	fi
+}
+
 # Change the current directory to the script's directory
 cd "$CURRENT_DIR" || exit
 
@@ -13,7 +24,7 @@ cd "$CURRENT_DIR" || exit
 # Under the user's cache directory rather than /tmp: the directory has to be world-writable for the
 # container's non-root user to write to it, and /tmp is shared with every other user on the machine.
 # A private cache directory is also shared with the Docker daemon by default on Docker Desktop.
-ACTIVITIES_HOST_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/${IMAGE_NAME}/activities"
+ACTIVITIES_HOST_DIR="$(native_path "${XDG_CACHE_HOME:-$HOME/.cache}/${IMAGE_NAME}/activities")"
 
 echo "Creating the local activities directory [$ACTIVITIES_HOST_DIR]..."
 mkdir -p "$ACTIVITIES_HOST_DIR"
