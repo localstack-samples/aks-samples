@@ -1,7 +1,7 @@
 name: Test samples on LocalStack for Azure
 
 # Creates the AKS cluster on the LocalStack for Azure emulator, deploys a sample's Python or .NET web
-# app with its numbered scripts, one job per app, and checks the app end to end with
+# app with its numbered scripts, one job per app and platform, and checks the app end to end with
 # tests/test-vacation-planner.sh. As in the Samples CI of localstack-azure-samples, a pull request or a
 # push runs the apps it changes (every app when a file all of them use changes), and a manual run can
 # choose to run every app, on Linux, on Windows or on both.
@@ -66,8 +66,9 @@ jobs:
       - name: Select the samples to run
         id: select
         env:
-          # Pull requests and pushes have no inputs: they run the samples they change
+          # Pull requests and pushes have no inputs: they run the samples they change, on Linux
           RUN_MODE: ${{ inputs.run_mode || 'changed' }}
+          PLATFORM: ${{ inputs.platform || 'Linux' }}
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -100,143 +101,73 @@ jobs:
             fi
           fi
 
-          matrix=$(jq -n -R -c '[inputs | select(length > 0) | split("/") | {sample: .[1], language: .[2]}] | {include: .}' <<< "$selected")
-          echo "Samples to run: $(jq -r '[.include[] | "\(.sample) (\(.language))"] | if length > 0 then join(", ") else "none" end' <<< "$matrix")"
+          case $PLATFORM in
+            Linux | Windows | all) ;;
+            *) echo "::error::Unknown platform '$PLATFORM' (expected Linux, Windows or all)"; exit 1 ;;
+          esac
+
+          # One job per app and platform: the entry names the runner and the job, so a run lists only the jobs
+          # it runs, under their own names
+          matrix=$(jq -n -R -c --arg platform "$PLATFORM" '
+            [inputs | select(length > 0) | split("/") | {sample: .[1], language: .[2]}] as $apps
+            | {include: (
+                (if $platform == "Windows" then [] else
+                  [$apps[] | . + {os: "linux", runner: "ubuntu-latest", name: "\(.sample) (\(.language))"}] end)
+                + (if $platform == "Linux" then [] else
+                  [$apps[] | . + {os: "windows", runner: "windows-latest", name: "Windows (Git Bash) \(.sample) (\(.language))"}] end)
+              )}' <<< "$selected")
+          echo "Jobs to run: $(jq -r '[.include[].name] | if length > 0 then join(", ") else "none" end' <<< "$matrix")"
           {
             echo "matrix=$matrix"
             echo "has_samples=$(jq '.include | length > 0' <<< "$matrix")"
           } >> "$GITHUB_OUTPUT"
 
+  # One job per app and platform, as the setup job's matrix lists them. On Linux, lstk starts the emulator on the
+  # runner. On Windows, the job runs the samples from Git Bash with MSYS_NO_PATHCONV=1 set as the README asks
+  # Windows users to do. The emulator is a Linux image and Docker on the Windows runner runs Windows containers, so
+  # there the emulator runs in Docker Engine inside a WSL 2 distribution on the same runner; the Windows docker
+  # CLI, lstk and kubectl reach it through ports WSL forwards to the runner's localhost.
   sample:
-    name: ${{ matrix.sample }} (${{ matrix.language }})
+    name: ${{ matrix.name }}
     needs: setup
-    # Skip the job when the run changes no sample, and on a manual run that asks for Windows only
-    if: needs.setup.outputs.has_samples == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.platform == 'Windows')
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Skip the job when the run selects no sample
+    if: needs.setup.outputs.has_samples == 'true'
+    runs-on: ${{ matrix.runner }}
+    # A Windows job also sets up WSL 2 and Docker Engine before the sample
+    timeout-minutes: ${{ matrix.os == 'windows' && 90 || 60 }}
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
-    env:
-      SAMPLE: ${{ matrix.sample }}
-      LANGUAGE: ${{ matrix.language }}
-
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Install lstk
-        # Pinned like actions/checkout, so an lstk release cannot change every run at once: bump it deliberately
-        run: npm install -g @localstack/lstk@1.4.0
-
-      - name: Install sqlcmd
-        # The Azure SQL Database sample seeds its database with sqlcmd, which the runner image does not ship
-        if: matrix.sample == 'web-app-sql-database'
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
-          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null
-          curl -fsSL "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list" | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
-          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
-
-      - name: Create the SSH key the cluster script provisions the node pools with
-        run: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa -q
-
-      - name: Start the LocalStack for Azure emulator
-        env:
-          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
-          # lstk forwards LOCALSTACK_-prefixed variables to the emulator. The Azure SQL Database sample
-          # needs the SQL Server EULA accepted, as its README and the localstack-azure-samples CI do
-          LOCALSTACK_MSSQL_ACCEPT_EULA: "Y"
-          # The emulator looks up the k3d release behind each AKS cluster on api.github.com. Anonymous
-          # calls share the runner IP's 60 requests an hour, which twenty parallel jobs can exhaust, so pass
-          # the run's own read-only token, as the localstack-azure-samples CI does
-          LOCALSTACK_GITHUB_API_TOKEN: ${{ github.token }}
-        run: |
-          lstk start --type azure --non-interactive
-          lstk az start-interception
-
-      # The script prompts for the network configuration and both node pool sizes:
-      # pick option 1 (Azure network plugin and policy) and keep the default sizes
-      - name: Create the AKS cluster
-        working-directory: scripts
-        run: printf '1\n\n\n' | ./01-system-assigned-managed-identity.sh
-
-      - name: Deploy the sample
-        working-directory: samples/${{ matrix.sample }}/${{ matrix.language }}/scripts
-        env:
-          # Answer the Azure Files sample's two provisioning menus; the other samples do not read these
-          PROVISIONING_MODE: static
-          FILE_SHARE_PROTOCOL: smb
-        run: |
-          ./01-deploy-resources.sh
-          ./02-build-docker-image.sh
-          ./04-push-docker-image.sh
-          ./05-deploy-app.sh
-
-      - name: Test the web app
-        run: |
-          variables="samples/$SAMPLE/$LANGUAGE/scripts/00-variables.sh"
-          namespace=$(sed -n "s/^NAMESPACE=\"\(.*\)\"/\1/p" "$variables")
-          service=$(sed -n "s/^SERVICE_NAME=\"\(.*\)\"/\1/p" "$variables")
-          ./tests/test-vacation-planner.sh "$namespace" "$service"
-
-      - name: Show cluster state and emulator logs
-        if: failure()
-        run: |
-          kubectl get pods --all-namespaces -o wide || true
-          kubectl get events --all-namespaces --sort-by=.lastTimestamp | tail -50 || true
-          for ns in $(kubectl get namespaces -o name | sed 's|namespace/||' | grep vacation-planner); do
-            kubectl describe pods --namespace "$ns" | tail -80 || true
-            kubectl logs --namespace "$ns" --all-containers --tail=100 -l "app=$ns" || true
-          done
-          lstk logs | tail -300 || true
-
-  # Runs the selected samples on Windows, from Git Bash with MSYS_NO_PATHCONV=1 set as the README asks Windows
-  # users to do, on manual runs whose platform is Windows or all. The emulator is a Linux image and Docker on
-  # the Windows runner runs Windows containers, so the emulator runs in Docker Engine inside a WSL 2
-  # distribution on the same runner; the Windows docker CLI, lstk and kubectl reach it through ports WSL
-  # forwards to the runner's localhost.
-  windows:
-    name: Windows (Git Bash) ${{ matrix.sample }} (${{ matrix.language }})
-    needs: setup
-    if: github.event_name == 'workflow_dispatch' && (inputs.platform == 'Windows' || inputs.platform == 'all') && needs.setup.outputs.has_samples == 'true'
-    runs-on: windows-latest
-    timeout-minutes: 90
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      # The same apps as the Linux job: those the setup job selected
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     defaults:
       run:
+        # Git Bash on Windows, whose default shell is PowerShell
         shell: bash
     env:
       SAMPLE: ${{ matrix.sample }}
       LANGUAGE: ${{ matrix.language }}
-      IMAGE: localstack/localstack-azure:latest
-      # The Docker Engine in WSL 2, for the Windows docker CLI and lstk
-      DOCKER_HOST: tcp://127.0.0.1:2375
-      # What the README asks Windows users of Git Bash and MSYS2 to export
-      MSYS_NO_PATHCONV: "1"
 
     steps:
       - name: Check out repo
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+
+      - name: Point the Windows tools at Docker Engine in WSL 2
+        # The Windows docker CLI and lstk reach the Docker Engine the next steps start in WSL 2 over TCP, and every
+        # later step runs with MSYS_NO_PATHCONV=1, what the README asks Windows users of Git Bash and MSYS2 to export
+        if: matrix.os == 'windows'
+        run: |
+          echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> "$GITHUB_ENV"
+          echo "MSYS_NO_PATHCONV=1" >> "$GITHUB_ENV"
 
       - name: Drop the carriage returns of Windows programs
         # The README asks Windows users for `set -o igncr` and `export SHELLOPTS`, so that the bash of Git Bash
         # and MSYS2 drops the carriage returns the Azure CLI and jq print from $(...) and read. Exporting
         # SHELLOPTS here would also hand each step's own -e and pipefail to the sample scripts, so every bash
         # turns the option on through BASH_ENV instead; a bash without the option skips the line.
+        if: matrix.os == 'windows'
         run: |
           printf '(set -o igncr) 2>/dev/null && set -o igncr\n' > "$RUNNER_TEMP/igncr.sh"
           echo "BASH_ENV=$(cygpath -m "$RUNNER_TEMP/igncr.sh")" >> "$GITHUB_ENV"
@@ -248,6 +179,7 @@ jobs:
         # DNS tunneling, on by default, answers DNS for WSL itself, but the containers of the Docker Engine
         # in WSL cannot reach its 10.255.255.254 resolver, so their lookups time out; without it, WSL
         # hands out the NAT device on the host, which containers reach too.
+        if: matrix.os == 'windows'
         shell: pwsh
         run: |
           Set-Content -Path "$env:USERPROFILE\.wslconfig" -Value "[wsl2]`nmemory=12GB`ndnsTunneling=false`n`n[general]`ninstanceIdleTimeout=-1"
@@ -255,6 +187,7 @@ jobs:
 
       - name: Set up Ubuntu in WSL 2
         id: wsl
+        if: matrix.os == 'windows'
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         with:
           distribution: Ubuntu-24.04
@@ -268,6 +201,7 @@ jobs:
         # is what the emulator container mounts to start the cluster and its backing containers; the TCP
         # endpoint, bound to localhost, is what WSL forwards to Windows. The wait asks the TCP endpoint,
         # so the step fails when that daemon did not start.
+        if: matrix.os == 'windows'
         shell: wsl-bash {0}
         run: |
           if [ -d /run/systemd/system ]; then
@@ -293,10 +227,11 @@ jobs:
             --format 'Docker {{.ServerVersion}} on {{.OperatingSystem}}, kernel {{.KernelVersion}}'
 
       - name: Check that the Windows docker CLI reaches it
+        if: matrix.os == 'windows'
         run: docker version
 
       - name: Install lstk
-        # The release the Linux job pins
+        # Pinned like actions/checkout, so an lstk release cannot change every run at once: bump it deliberately
         run: npm install -g @localstack/lstk@1.4.0
 
       - name: Give lstk an Azure CLI path without spaces
@@ -305,6 +240,7 @@ jobs:
         # ("'C:\Program' is not recognized"), so `lstk az start-interception` (lstk 1.4.0) fails wherever the
         # Azure CLI sits in its default folder. A junction without spaces, first on the PATH, works around it
         # until lstk passes the JSON another way; Git Bash runs the same Azure CLI through it.
+        if: matrix.os == 'windows'
         shell: pwsh
         run: |
           $cliDir = Split-Path -Parent (Split-Path -Parent (Get-Command az.cmd).Source)
@@ -314,6 +250,7 @@ jobs:
       - name: Install yq
         # The deployment scripts render the Kubernetes manifests with yq, which the Windows runner image
         # does not ship. The release and its SHA-256 are pinned.
+        if: matrix.os == 'windows'
         env:
           YQ_VERSION: v4.54.1
           YQ_SHA256: b645f47ebb3a0d2fbab52998550bbd0a1706f23b5ca5f5b48e638c580bb70928
@@ -328,14 +265,25 @@ jobs:
       - name: Put psql on the PATH
         # The PostgreSQL and App Configuration samples seed their databases with psql, which comes with the
         # PostgreSQL the Windows runner image installs off the PATH; the Linux runner image has it on the PATH
+        if: matrix.os == 'windows'
         run: |
           echo "$PGBIN" >> "$GITHUB_PATH"
           "$PGBIN/psql" --version
 
       - name: Install sqlcmd
-        # The Azure SQL Database sample seeds its database with sqlcmd, which the runner image does not ship:
-        # the Go sqlcmd release, pinned with its SHA-256
-        if: matrix.sample == 'web-app-sql-database'
+        # The Azure SQL Database sample seeds its database with sqlcmd, which the runner image does not ship
+        if: matrix.os == 'linux' && matrix.sample == 'web-app-sql-database'
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null
+          curl -fsSL "https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list" | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+
+      - name: Install sqlcmd on Windows
+        # The Windows runner image does not ship sqlcmd either: the Go sqlcmd release, pinned with its SHA-256
+        if: matrix.os == 'windows' && matrix.sample == 'web-app-sql-database'
         env:
           SQLCMD_VERSION: v1.10.0
           SQLCMD_SHA256: a4c28332fcc6e497d655e53ac8f4939f4ab170f9cfd32d0fa5081b60f4d9d691
@@ -349,12 +297,29 @@ jobs:
       - name: Create the SSH key the cluster script provisions the node pools with
         run: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa -q
 
+      - name: Start the LocalStack for Azure emulator
+        if: matrix.os == 'linux'
+        env:
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
+          # lstk forwards LOCALSTACK_-prefixed variables to the emulator. The Azure SQL Database sample
+          # needs the SQL Server EULA accepted, as its README and the localstack-azure-samples CI do
+          LOCALSTACK_MSSQL_ACCEPT_EULA: "Y"
+          # The emulator looks up the k3d release behind each AKS cluster on api.github.com. Anonymous
+          # calls share the runner IP's 60 requests an hour, which twenty parallel jobs can exhaust, so pass
+          # the run's own read-only token, as the localstack-azure-samples CI does
+          LOCALSTACK_GITHUB_API_TOKEN: ${{ github.token }}
+        run: |
+          lstk start --type azure --non-interactive
+          lstk az start-interception
+
       - name: Start the LocalStack for Azure emulator in WSL 2
         # Started with the docker CLI rather than lstk: lstk on Windows would mount a Windows volume path,
         # and no Docker socket, into the Linux engine. The two mounts are paths inside WSL, which
         # MSYS_NO_PATHCONV keeps Git Bash from rewriting. lstk then finds the container by its name to
         # route the Azure CLI to it.
+        if: matrix.os == 'windows'
         env:
+          IMAGE: localstack/localstack-azure:latest
           LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
           # The emulator looks up the k3d release behind each AKS cluster on api.github.com, as on Linux
           GITHUB_API_TOKEN: ${{ github.token }}
@@ -391,7 +356,7 @@ jobs:
       - name: Deploy the sample
         working-directory: samples/${{ matrix.sample }}/${{ matrix.language }}/scripts
         env:
-          # Answer the Azure Files sample's two provisioning menus, as the Linux job does
+          # Answer the Azure Files sample's two provisioning menus; the other samples do not read these
           PROVISIONING_MODE: static
           FILE_SHARE_PROTOCOL: smb
         run: |
@@ -416,10 +381,15 @@ jobs:
             kubectl describe pods --namespace "$ns" | tail -80 || true
             kubectl logs --namespace "$ns" --all-containers --tail=100 -l "app=$ns" || true
           done
-          docker logs localstack-azure 2>&1 | tail -n 300 || true
+          if [ "$RUNNER_OS" = Windows ]; then
+            # Started with the docker CLI in WSL 2, not by lstk
+            docker logs localstack-azure 2>&1 | tail -n 300 || true
+          else
+            lstk logs | tail -300 || true
+          fi
 
       - name: Get the Docker Engine log
         # The wsl-bash shell exists only once WSL is set up
-        if: failure() && steps.wsl.outcome == 'success'
+        if: failure() && matrix.os == 'windows' && steps.wsl.outcome == 'success'
         shell: wsl-bash {0}
         run: tail -n 100 /var/log/dockerd.log || true
