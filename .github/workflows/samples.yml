@@ -4,7 +4,7 @@ name: Test samples on LocalStack for Azure
 # app with its numbered scripts, one job per app, and checks the app end to end with
 # tests/test-vacation-planner.sh. As in the Samples CI of localstack-azure-samples, a pull request or a
 # push runs the apps it changes (every app when a file all of them use changes), and a manual run can
-# choose to run every app.
+# choose to run every app, on Linux, on Windows or on both.
 
 on:
   push:
@@ -25,11 +25,15 @@ on:
           - all
           - changed
         default: changed
-      windows:
-        description: "Run only the Windows job, every sample from Git Bash with MSYS_NO_PATHCONV=1, instead of the Linux matrix (run_mode does not apply)"
+      platform:
+        description: "Where the selected samples run: Linux, Windows (from Git Bash with MSYS_NO_PATHCONV=1), or all (both, in parallel jobs of the same run)"
         required: false
-        type: boolean
-        default: false
+        type: choice
+        options:
+          - Windows
+          - Linux
+          - all
+        default: Linux
 
 permissions: {}
 
@@ -62,9 +66,8 @@ jobs:
       - name: Select the samples to run
         id: select
         env:
-          # Pull requests and pushes have no inputs: they run the samples they change. A manual run with the
-          # windows input runs every sample, on Windows
-          RUN_MODE: ${{ inputs.windows && 'all' || inputs.run_mode || 'changed' }}
+          # Pull requests and pushes have no inputs: they run the samples they change
+          RUN_MODE: ${{ inputs.run_mode || 'changed' }}
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -107,9 +110,8 @@ jobs:
   sample:
     name: ${{ matrix.sample }} (${{ matrix.language }})
     needs: setup
-    # Skip the job when the run changes no sample, and on a manual run with the windows input, which runs the
-    # Windows job instead
-    if: needs.setup.outputs.has_samples == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.windows)
+    # Skip the job when the run changes no sample, and on a manual run that asks for Windows only
+    if: needs.setup.outputs.has_samples == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.platform == 'Windows')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -195,22 +197,22 @@ jobs:
           done
           lstk logs | tail -300 || true
 
-  # Runs every sample on Windows, from Git Bash with MSYS_NO_PATHCONV=1 set as the README asks Windows
-  # users to do, on manual runs with the windows input only. The emulator is a Linux image and Docker on
+  # Runs the selected samples on Windows, from Git Bash with MSYS_NO_PATHCONV=1 set as the README asks Windows
+  # users to do, on manual runs whose platform is Windows or all. The emulator is a Linux image and Docker on
   # the Windows runner runs Windows containers, so the emulator runs in Docker Engine inside a WSL 2
   # distribution on the same runner; the Windows docker CLI, lstk and kubectl reach it through ports WSL
   # forwards to the runner's localhost.
   windows:
     name: Windows (Git Bash) ${{ matrix.sample }} (${{ matrix.language }})
     needs: setup
-    if: github.event_name == 'workflow_dispatch' && inputs.windows && needs.setup.outputs.has_samples == 'true'
+    if: github.event_name == 'workflow_dispatch' && (inputs.platform == 'Windows' || inputs.platform == 'all') && needs.setup.outputs.has_samples == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
     permissions:
       contents: read
     strategy:
       fail-fast: false
-      # Every app: on a manual run with the windows input, the setup job selects all of them
+      # The same apps as the Linux job: those the setup job selected
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     defaults:
       run:
