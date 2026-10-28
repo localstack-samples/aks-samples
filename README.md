@@ -237,7 +237,7 @@ Alternatively, you can use a terminal UI such as [k9s](https://k9scli.io/) to se
 ./tests/test-vacation-planner.sh vacation-planner-blob vacation-planner-blob
 ```
 
-The [Test samples on LocalStack for Azure](.github/workflows/samples.yml) workflow runs this against the emulator, one job per sample app, in Python and .NET. Each job creates the cluster with `scripts/01-system-assigned-managed-identity.sh`, deploys the app with its numbered scripts, and runs the test. A pull request or a push to `main` runs the apps whose folders it changes, and all 20 when it changes the cluster script, the test or the workflow. A manual run tests the changed apps by default, or all 20 with `run_mode: all`.
+The [Test samples on LocalStack for Azure](.github/workflows/run-samples.yml) workflow runs this against the emulator, one job per sample app, in Python and .NET. Each job creates the cluster with `scripts/01-system-assigned-managed-identity.sh`, deploys the app with its numbered scripts, and runs the test. A pull request or a push to `main` runs the apps whose folders it changes, and all 20 when it changes the cluster script, the test or the workflow. A manual run tests the changed apps by default, or all 20 with `run_mode: all`.
 It also picks where they run with `platform`: `Linux` (the default), `Windows`, from Git Bash, or `all`, which runs both at once, in parallel jobs of the same run.
 
 ## Tutorials
