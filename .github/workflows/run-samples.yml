@@ -89,7 +89,7 @@ jobs:
               echo "$changed"
               # Every job creates the cluster with the same script and checks the app with the same test, so a
               # change to either, or to this workflow, runs every app; otherwise an app runs when its folder changes
-              shared='^(scripts/01-system-assigned-managed-identity\.sh|tests/test-vacation-planner\.sh|\.github/workflows/samples\.yml)$'
+              shared='^(scripts/01-system-assigned-managed-identity\.sh|tests/test-vacation-planner\.sh|\.github/workflows/run-samples\.yml)$'
               if ! grep -q -E "$shared" <<< "$changed"; then
                 selected=$(while read -r app; do
                   if grep -q "^$app/" <<< "$changed"; then echo "$app"; fi
