@@ -111,7 +111,7 @@ kubectl get nodes
 ## LocalStack emulator notes
 
 - The emulator does not persist the managed Gateway API from AzAPI's PUT, so on the emulator `deploy.sh` passes `gateway_api_enabled=false` and enables the Gateway API with `az aks update --enable-gateway-api` after the apply.
-- The emulator does not return the Windows profile, and azurerm replaces a cluster to change one, so the configuration ignores changes to the Windows profile, as it does to the node counts the cluster autoscaler manages.
+- Earlier versions of the emulator do not return the Windows profile, and azurerm replaces a cluster to change one, so the configuration ignores changes to the Windows profile, as it does to the node counts the cluster autoscaler manages.
 - On the emulator, a cluster the scripts create reports the security features of Advanced Container Networking Services as enabled even with the Azure dataplane, which those features do not support; the cluster Terraform creates reports them as disabled.
 
 ## Related Documentation

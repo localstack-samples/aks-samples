@@ -118,7 +118,7 @@ kubectl get nodes
 
 ## LocalStack emulator notes
 
-The template deploys on the emulator as it is, and the cluster it creates there matches the one the scripts create: the same resources, cluster settings, node pools, role assignments and diagnostic settings. As for a cluster the scripts create, the emulator does not return the Windows profile.
+The template deploys on the emulator as it is, and the cluster it creates there matches the one the scripts create: the same resources, cluster settings, node pools, role assignments and diagnostic settings.
 
 ## Related Documentation
 

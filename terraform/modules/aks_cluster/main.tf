@@ -133,7 +133,7 @@ resource "azurerm_kubernetes_cluster" "aks_cluster" {
     ignore_changes = [
       # The cluster autoscaler changes the node count
       default_node_pool[0].node_count,
-      # The emulator does not return the Windows profile, and a change to it replaces the cluster
+      # Earlier versions of the emulator do not return the Windows profile, and a change to it replaces the cluster
       windows_profile,
     ]
   }
