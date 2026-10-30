@@ -186,6 +186,9 @@ module managedIdentity 'modules/managed-identity.bicep' = if (identityType == 'U
 
 module aksCluster 'modules/aks-cluster.bicep' = {
   name: 'aksCluster'
+  dependsOn: [
+    userAssignedSystemSubnetNetworkContributorRoleAssignment
+  ]
   params: {
     name: aksClusterName
     location: location
@@ -215,8 +218,13 @@ module aksCluster 'modules/aks-cluster.bicep' = {
   }
 }
 
+// Added after the cluster identity's Network Contributor role assignments, as the scripts add it
 module userNodePool 'modules/aks-node-pool.bicep' = {
   name: 'userNodePool'
+  dependsOn: [
+    networkContributorRoleAssignment
+    systemAssignedSystemSubnetNetworkContributorRoleAssignment
+  ]
   params: {
     clusterName: aksCluster.outputs.name
     subnetId: virtualNetwork.outputs.userSubnetId
@@ -262,13 +270,27 @@ resource networkContributorRoleAssignment 'Microsoft.Authorization/roleAssignmen
 }
 
 // Network Contributor on the subnet of the system node pool for the cluster identity, which az aks create
-// --vnet-subnet-id grants as well
-resource systemSubnetNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+// --vnet-subnet-id grants as well: before it creates the cluster for a user-assigned identity, after it for a
+// system-assigned one, which exists only once the cluster does
+resource userAssignedSystemSubnetNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (identityType == 'UserAssigned') {
+  name: guid(existingSystemSubnet.id, aksManagedIdentityName, networkContributorRoleId)
+  scope: existingSystemSubnet
+  dependsOn: [
+    virtualNetwork
+  ]
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', networkContributorRoleId)
+    principalId: managedIdentity!.outputs.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource systemAssignedSystemSubnetNetworkContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (identityType == 'SystemAssigned') {
   name: guid(existingSystemSubnet.id, aksClusterName, networkContributorRoleId)
   scope: existingSystemSubnet
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', networkContributorRoleId)
-    principalId: identityType == 'UserAssigned' ? managedIdentity!.outputs.principalId : aksCluster.outputs.principalId
+    principalId: aksCluster.outputs.principalId
     principalType: 'ServicePrincipal'
   }
 }

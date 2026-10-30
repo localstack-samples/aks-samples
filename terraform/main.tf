@@ -132,8 +132,11 @@ module "aks_cluster" {
   aad_admin_group_object_ids = var.aad_admin_group_object_ids
   log_analytics_workspace_id = module.log_analytics.id
   diagnostic_settings_name   = var.diagnostic_settings_name
+
+  depends_on = [azurerm_role_assignment.user_assigned_system_subnet_network_contributor]
 }
 
+# Added after the cluster identity's Network Contributor role assignments, as the scripts add it
 module "aks_node_pool" {
   source = "./modules/aks_node_pool"
 
@@ -149,6 +152,11 @@ module "aks_node_pool" {
   os_sku                = var.os_sku
   node_labels           = local.node_labels
   tags                  = local.provisioning_tags
+
+  depends_on = [
+    azurerm_role_assignment.network_contributor,
+    azurerm_role_assignment.system_assigned_system_subnet_network_contributor,
+  ]
 }
 
 # The managed Gateway API CRDs (azurerm does not expose ingressProfile.gatewayAPI). Ordered after the user node pool:
@@ -182,11 +190,23 @@ resource "azurerm_role_assignment" "network_contributor" {
 }
 
 # Network Contributor on the subnet of the system node pool for the cluster identity, which az aks create
-# --vnet-subnet-id grants as well
-resource "azurerm_role_assignment" "system_subnet_network_contributor" {
+# --vnet-subnet-id grants as well: before it creates the cluster for a user-assigned identity, after it for a
+# system-assigned one, which exists only once the cluster does
+resource "azurerm_role_assignment" "user_assigned_system_subnet_network_contributor" {
+  count = var.identity_type == "UserAssigned" ? 1 : 0
+
   scope                            = module.virtual_network.system_subnet_id
   role_definition_name             = "Network Contributor"
-  principal_id                     = var.identity_type == "UserAssigned" ? azurerm_user_assigned_identity.aks[0].principal_id : module.aks_cluster.principal_id
+  principal_id                     = azurerm_user_assigned_identity.aks[0].principal_id
+  skip_service_principal_aad_check = true
+}
+
+resource "azurerm_role_assignment" "system_assigned_system_subnet_network_contributor" {
+  count = var.identity_type == "SystemAssigned" ? 1 : 0
+
+  scope                            = module.virtual_network.system_subnet_id
+  role_definition_name             = "Network Contributor"
+  principal_id                     = module.aks_cluster.principal_id
   skip_service_principal_aad_check = true
 }
 
