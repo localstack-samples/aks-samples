@@ -142,9 +142,17 @@ Before deploying any sample you must first provision an AKS cluster. Four script
 
 [scripts/README.md](scripts/README.md) details what each script provisions, which samples need which feature, and the variables of the configurable script.
 
+The same full cluster can also be deployed as infrastructure as code. [bicep/](bicep/) and [terraform/](terraform/) create the cluster of `01-system-assigned-managed-identity.sh`, or with a user-assigned identity the one of `01-user-assigned-managed-identity.sh`, with the same names and defaults, so every sample runs on it:
+
+| Deployment | Cluster identity | How to run it |
+| ---------- | ---------------- | ------------- |
+| [bicep/](bicep/README.md) | System-assigned, or user-assigned with `IDENTITY_TYPE=UserAssigned` | `cd bicep && ./deploy.sh` |
+| [terraform/](terraform/README.md) | System-assigned, or user-assigned with `IDENTITY_TYPE=UserAssigned` | `cd terraform && ./deploy.sh` |
+
 All four scripts are idempotent: they check whether each resource already exists before creating it, so they can be safely re-run. The two managed-identity scripts, and the configurable one with every default, provision the following building blocks:
 
 - A resource group and a Log Analytics workspace (wired to the cluster through the monitoring add-on / Azure Monitor for containers).
+- A diagnostic setting called `default` on the cluster, the virtual network, the Bastion host and its public IP address, the container registry and the key vault, which sends their logs and metrics to the workspace. See [Monitoring](scripts/README.md#monitoring).
 - A dedicated virtual network (`10.0.0.0/8`) with three subnets: `SystemSubnet` (system node pool), `UserSubnet` (user node pool), and `AzureBastionSubnet`.
 - An [Azure Bastion](https://learn.microsoft.com/en-us/azure/bastion/bastion-overview) host in `AzureBastionSubnet`, with the Standard SKU static public IP it requires, for reaching the nodes without exposing SSH to the internet. Creating it takes several minutes.
 - An [Azure Container Registry (ACR)](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-intro) that is attached to the cluster (via `--attach-acr`) so nodes can pull images without extra credentials.
@@ -239,10 +247,11 @@ Alternatively, you can use a terminal UI such as [k9s](https://k9scli.io/) to se
 
 The [Test samples on LocalStack for Azure](.github/workflows/run-samples.yml) workflow runs this against the emulator, one job per sample app, in Python and .NET. Each job creates the cluster with `scripts/01-system-assigned-managed-identity.sh`, deploys the app with its numbered scripts, and runs the test. A pull request or a push to `main` runs the apps whose folders it changes, and all 20 when it changes the cluster script, the test or the workflow. A manual run tests the changed apps by default, or all 20 with `run_mode: all`.
 It also picks where they run with `platform`: `Linux` (the default), `Windows`, from Git Bash, or `all`, which runs both at once, in parallel jobs of the same run.
+Two more jobs create the cluster with [bicep/](bicep/) and with [terraform/](terraform/) and deploy and test one app on each, `web-app-managed-identity` in Python. They run when their folder, the test scripts or the workflow change, and in every manual run with `run_mode: all`. Every job also checks the diagnostic settings of the cluster's resources with [tests/test-diagnostic-settings.sh](tests/test-diagnostic-settings.sh).
 
 ## Tutorials
 
-Beyond the Vacation Planner samples, the repository includes standalone tutorials that exercise specific AKS capabilities. Unlike the samples above, they do not deploy the web app.
+Beyond the Vacation Planner samples, the repository includes standalone tutorials that exercise specific AKS capabilities. Unlike the samples above, they do not deploy the web app. The Bicep and Terraform tutorials build their own feature-rich cluster, with other names and settings; to deploy the cluster the samples run on with Bicep or Terraform, use [bicep/](bicep/) and [terraform/](terraform/) instead.
 
 | Tutorial | Description |
 | ------ | ----------- |

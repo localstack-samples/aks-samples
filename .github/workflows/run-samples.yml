@@ -4,7 +4,9 @@ name: Test samples on LocalStack for Azure
 # app with its numbered scripts, one job per app and platform, and checks the app end to end with
 # tests/test-vacation-planner.sh. As in the Samples CI of localstack-azure-samples, a pull request or a
 # push runs the apps it changes (every app when a file all of them use changes), and a manual run can
-# choose to run every app, on Linux, on Windows or on both.
+# choose to run every app, on Linux, on Windows or on both. Two more jobs create the cluster with bicep/
+# and with terraform/ instead of the script, and deploy and check one app on each. Every job checks the
+# diagnostic settings of the cluster's resources with tests/test-diagnostic-settings.sh.
 
 on:
   push:
@@ -76,6 +78,8 @@ jobs:
           # Every app a job can deploy, as samples/<sample>/<language>, so a new sample needs no change here
           apps=$(printf '%s\n' samples/*/*/scripts/05-deploy-app.sh | sed 's|/scripts/05-deploy-app\.sh$||')
           selected=$apps
+          # The Bicep and Terraform deployments of the cluster, each checked with one app
+          deployments="bicep terraform"
 
           if [ "$RUN_MODE" = changed ]; then
             case $EVENT_NAME in
@@ -87,14 +91,18 @@ jobs:
               changed=$(git diff --name-only "$base...HEAD")
               echo "Files changed since $base:"
               echo "$changed"
-              # Every job creates the cluster with the same script and checks the app with the same test, so a
-              # change to either, or to this workflow, runs every app; otherwise an app runs when its folder changes
-              shared='^(scripts/01-system-assigned-managed-identity\.sh|tests/test-vacation-planner\.sh|\.github/workflows/run-samples\.yml)$'
+              # Every job creates the cluster with the same script and checks it and the app with the same tests, so
+              # a change to any of them, or to this workflow, runs every app; otherwise an app runs when its folder changes
+              shared='^(scripts/01-system-assigned-managed-identity\.sh|tests/test-vacation-planner\.sh|tests/test-diagnostic-settings\.sh|\.github/workflows/run-samples\.yml)$'
               if ! grep -q -E "$shared" <<< "$changed"; then
                 selected=$(while read -r app; do
                   if grep -q "^$app/" <<< "$changed"; then echo "$app"; fi
                 done <<< "$apps")
               fi
+              # A deployment runs when its folder, one of the tests or this workflow changes
+              deployments=$(for deployment in bicep terraform; do
+                if grep -q -E "^($deployment/|tests/|\.github/workflows/run-samples\.yml$)" <<< "$changed"; then echo "$deployment"; fi
+              done)
             else
               # A push that creates the branch or rewrites its history leaves no base commit to compare with
               echo "Base commit '$base' not found: running every sample"
@@ -106,15 +114,19 @@ jobs:
             *) echo "::error::Unknown platform '$PLATFORM' (expected Linux, Windows or all)"; exit 1 ;;
           esac
 
-          # One job per app and platform: the entry names the runner and the job, so a run lists only the jobs
-          # it runs, under their own names
-          matrix=$(jq -n -R -c --arg platform "$PLATFORM" '
-            [inputs | select(length > 0) | split("/") | {sample: .[1], language: .[2]}] as $apps
+          # One job per app and platform, and one per deployment and platform: the entry names the runner and the
+          # job, so a run lists only the jobs it runs, under their own names. The script creates the cluster of the
+          # app jobs; each deployment job creates it with bicep/ or terraform/ and checks web-app-managed-identity
+          matrix=$(jq -n -R -c --arg platform "$PLATFORM" --arg deployments "$deployments" '
+            ([inputs | select(length > 0) | split("/") | {sample: .[1], language: .[2], provisioning: "script", cluster: ""}]
+            + [$deployments | splits("\\s+") | select(length > 0)
+                | {sample: "web-app-managed-identity", language: "python", provisioning: .,
+                   cluster: (if . == "bicep" then "Bicep cluster: " else "Terraform cluster: " end)}]) as $jobs
             | {include: (
                 (if $platform == "Windows" then [] else
-                  [$apps[] | . + {os: "linux", runner: "ubuntu-latest", name: "\(.sample) (\(.language))"}] end)
+                  [$jobs[] | . + {os: "linux", runner: "ubuntu-latest", name: "\(.cluster)\(.sample) (\(.language))"}] end)
                 + (if $platform == "Linux" then [] else
-                  [$apps[] | . + {os: "windows", runner: "windows-latest", name: "Windows (Git Bash) \(.sample) (\(.language))"}] end)
+                  [$jobs[] | . + {os: "windows", runner: "windows-latest", name: "Windows (Git Bash) \(.cluster)\(.sample) (\(.language))"}] end)
               )}' <<< "$selected")
           echo "Jobs to run: $(jq -r '[.include[].name] | if length > 0 then join(", ") else "none" end' <<< "$matrix")"
           {
@@ -147,6 +159,7 @@ jobs:
     env:
       SAMPLE: ${{ matrix.sample }}
       LANGUAGE: ${{ matrix.language }}
+      PROVISIONING: ${{ matrix.provisioning }}
 
     steps:
       - name: Check out repo
@@ -347,11 +360,26 @@ jobs:
           fi
           lstk az start-interception
 
-      # The script prompts for the network configuration and both node pool sizes:
-      # pick option 1 (Azure network plugin and policy) and keep the default sizes
+      - name: Set up Terraform
+        if: matrix.provisioning == 'terraform'
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          # deploy.sh runs terraform itself: the wrapper only serves steps that read terraform's outputs
+          terraform_wrapper: false
+
+      # The script prompts for the network configuration and both node pool sizes: pick option 1 (Azure network
+      # plugin and policy) and keep the default sizes. bicep/deploy.sh and terraform/deploy.sh default to the same.
       - name: Create the AKS cluster
-        working-directory: scripts
-        run: printf '1\n\n\n' | ./01-system-assigned-managed-identity.sh
+        run: |
+          case $PROVISIONING in
+            script) (cd scripts && printf '1\n\n\n' | ./01-system-assigned-managed-identity.sh) ;;
+            bicep) bicep/deploy.sh ;;
+            terraform) terraform/deploy.sh ;;
+            *) echo "::error::Unknown provisioning '$PROVISIONING'"; exit 1 ;;
+          esac
+
+      - name: Check the diagnostic settings of the cluster's resources
+        run: tests/test-diagnostic-settings.sh
 
       - name: Deploy the sample
         working-directory: samples/${{ matrix.sample }}/${{ matrix.language }}/scripts
