@@ -75,6 +75,9 @@ minimum_gateway_api_cli_version="2.86.0"
 log_analytics_name="$prefix-log-analytics-$suffix"
 log_analytics_sku="PerGB2018"
 
+# Diagnostic settings that send the logs and metrics of the cluster's resources to the Log Analytics workspace
+diagnostic_settings_name="default"
+
 # Node size and ssh key location for AKS nodes. Without the key file the cluster is created with --no-ssh-key:
 # az aks create refuses to run with neither.
 node_size="Standard_D4ds_v5"
@@ -377,7 +380,7 @@ ask_questions() {
 	ask_bool ENABLE_CLUSTER_AUTOSCALER "Enable the cluster autoscaler on the node pools?" true
 	ask_bool ENABLE_WORKLOAD_IDENTITY "Enable Microsoft Entra Workload ID?" true
 	ask_bool CREATE_KEY_VAULT "Create a Key Vault with the CSI secrets provider?" true
-	ask_bool ENABLE_MONITORING "Enable Container Insights with Log Analytics?" true
+	ask_bool ENABLE_MONITORING "Enable Container Insights and diagnostic settings with Log Analytics?" true
 	ask_bool ENABLE_FILE_CSI_DRIVER "Enable the Azure Files CSI driver?" true
 	ask_bool ENABLE_DISK_CSI_DRIVER "Enable the Azure Disk CSI driver?" true
 
@@ -478,7 +481,7 @@ print_resources() {
 		echo "  - Managed identity [$aks_managed_identity_name]"
 	fi
 	if [[ $ENABLE_MONITORING == true ]]; then
-		echo "  - Log Analytics workspace [$log_analytics_name]"
+		echo "  - Log Analytics workspace [$log_analytics_name], and [$diagnostic_settings_name] diagnostic settings that send the logs and metrics of these resources to it"
 	fi
 	if [[ $CREATE_KEY_VAULT == true ]]; then
 		echo "  - Key Vault [$key_vault_name]"
@@ -536,7 +539,7 @@ print_summary() {
 	summary_line "Cluster autoscaler" "$(yes_no "$ENABLE_CLUSTER_AUTOSCALER")"
 	summary_line "Workload ID" "$(yes_no "$ENABLE_WORKLOAD_IDENTITY")"
 	summary_line "Key Vault + CSI secrets provider" "$(yes_no "$CREATE_KEY_VAULT")"
-	summary_line "Monitoring (Container Insights)" "$(yes_no "$ENABLE_MONITORING")"
+	summary_line "Monitoring + diagnostic settings" "$(yes_no "$ENABLE_MONITORING")"
 	summary_line "Azure Files CSI driver" "$(yes_no "$ENABLE_FILE_CSI_DRIVER")"
 	summary_line "Azure Disk CSI driver" "$(yes_no "$ENABLE_DISK_CSI_DRIVER")"
 	summary_line "Custom virtual network" "$(yes_no "$CREATE_VNET")"
@@ -1345,6 +1348,106 @@ ensure_role_assignments() {
 	fi
 }
 
+# ensure_diagnostic_setting DESCRIPTION RESOURCE_ID LOGS METRICS [ARGS...]: create the diagnostic settings that send
+# a resource's logs and metrics to the Log Analytics workspace, unless they exist
+ensure_diagnostic_setting() {
+	local description=$1 resource_id=$2 logs=$3 metrics=$4
+	shift 4
+	log "Checking if [$diagnostic_settings_name] diagnostic settings for the $description already exist..."
+	if exists az monitor diagnostic-settings show --name "$diagnostic_settings_name" --resource "$resource_id" --only-show-errors; then
+		log "[$diagnostic_settings_name] diagnostic settings for the $description already exist"
+		return
+	fi
+	log "Creating [$diagnostic_settings_name] diagnostic settings for the $description..."
+	run az monitor diagnostic-settings create \
+		--name "$diagnostic_settings_name" \
+		--resource "$resource_id" \
+		--workspace "$workspace_resource_id" \
+		--logs "$logs" \
+		--metrics "$metrics" \
+		"$@" \
+		--only-show-errors >/dev/null ||
+		die "Failed to create [$diagnostic_settings_name] diagnostic settings for the $description"
+	log "[$diagnostic_settings_name] diagnostic settings for the $description successfully created"
+}
+
+# Create the diagnostic settings of every resource the answers provisioned. The AKS control plane logs go to the
+# resource-specific tables of the workspace (AKSAuditAdmin, AKSControlPlane). kube-audit is left out on purpose:
+# it adds every get and list request to what kube-audit-admin collects, which can be costly on Azure.
+ensure_diagnostic_settings() {
+	local all_metrics='[{"category": "AllMetrics", "enabled": true}]' aks_cluster_id acr_id bastion_public_ip_id bastion_host_id
+	aks_cluster_id=$(query "<aks-cluster-id>" az aks show \
+		--name "$aks_cluster_name" \
+		--resource-group "$resource_group_name" \
+		--query id \
+		--output tsv \
+		--only-show-errors)
+	[[ -n $aks_cluster_id ]] || die "Failed to retrieve the id for the [$aks_cluster_name] AKS cluster"
+	ensure_diagnostic_setting "[$aks_cluster_name] AKS cluster" "$aks_cluster_id" '[
+		{"category": "kube-apiserver", "enabled": true},
+		{"category": "kube-audit-admin", "enabled": true},
+		{"category": "kube-controller-manager", "enabled": true},
+		{"category": "kube-scheduler", "enabled": true},
+		{"category": "cluster-autoscaler", "enabled": true},
+		{"category": "cloud-controller-manager", "enabled": true},
+		{"category": "guard", "enabled": true},
+		{"category": "csi-azurefile-controller", "enabled": true},
+		{"category": "csi-snapshot-controller", "enabled": true}
+	]' "$all_metrics" --export-to-resource-specific true
+
+	acr_id=$(query "<container-registry-id>" az acr show \
+		--name "$acr_name" \
+		--resource-group "$resource_group_name" \
+		--query id \
+		--output tsv \
+		--only-show-errors)
+	[[ -n $acr_id ]] || die "Failed to retrieve the id for the [$acr_name] container registry"
+	ensure_diagnostic_setting "[$acr_name] container registry" "$acr_id" '[
+		{"category": "ContainerRegistryRepositoryEvents", "enabled": true},
+		{"category": "ContainerRegistryLoginEvents", "enabled": true}
+	]' "$all_metrics"
+
+	if [[ $CREATE_VNET == true ]]; then
+		ensure_diagnostic_setting "[$virtual_network_name] virtual network" "$virtual_network_id" '[
+			{"category": "VMProtectionAlerts", "enabled": true}
+		]' "$all_metrics"
+	fi
+
+	if [[ $CREATE_BASTION == true ]]; then
+		bastion_public_ip_id=$(query "<bastion-public-ip-id>" az network public-ip show \
+			--name "$bastion_public_ip_name" \
+			--resource-group "$resource_group_name" \
+			--query id \
+			--output tsv \
+			--only-show-errors)
+		[[ -n $bastion_public_ip_id ]] || die "Failed to retrieve the id for the [$bastion_public_ip_name] public IP address"
+		# The DDoS categories only receive data while Azure DDoS Protection mitigates an attack on the address
+		ensure_diagnostic_setting "[$bastion_public_ip_name] public IP address" "$bastion_public_ip_id" '[
+			{"category": "DDoSProtectionNotifications", "enabled": true},
+			{"category": "DDoSMitigationFlowLogs", "enabled": true},
+			{"category": "DDoSMitigationReports", "enabled": true}
+		]' "$all_metrics"
+
+		bastion_host_id=$(query "<bastion-host-id>" az network bastion show \
+			--name "$bastion_host_name" \
+			--resource-group "$resource_group_name" \
+			--query id \
+			--output tsv \
+			--only-show-errors)
+		[[ -n $bastion_host_id ]] || die "Failed to retrieve the id for the [$bastion_host_name] bastion host"
+		ensure_diagnostic_setting "[$bastion_host_name] bastion host" "$bastion_host_id" '[
+			{"category": "BastionAuditLogs", "enabled": true}
+		]' "$all_metrics"
+	fi
+
+	if [[ $CREATE_KEY_VAULT == true ]]; then
+		ensure_diagnostic_setting "[$key_vault_name] key vault" "$key_vault_id" '[
+			{"category": "AuditEvent", "enabled": true},
+			{"category": "AzurePolicyEvaluationDetails", "enabled": true}
+		]' "$all_metrics"
+	fi
+}
+
 ensure_user_node_pool() {
 	local args
 	log "Checking if [$aks_cluster_name] aks cluster actually has a user node pool..."
@@ -1527,6 +1630,9 @@ main() {
 		install_gateway_controllers
 	fi
 	wait_job bastion
+	if [[ $ENABLE_MONITORING == true ]]; then
+		ensure_diagnostic_settings
+	fi
 	print_storage
 
 	if [[ $DRY_RUN != true ]]; then

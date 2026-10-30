@@ -10,7 +10,7 @@ Every cluster script creates the `local-aks-test` cluster in the `local-rg` reso
 | ------ | ----------- | -------- |
 | [01-basic-cluster.sh](01-basic-cluster.sh) | No questions: the smallest and fastest cluster to provision, for demos. To save time it turns off the Azure Files and Azure Disk CSI drivers and the CSI snapshot controller, so it runs every sample except [web-app-file-storage](../samples/web-app-file-storage/) and [web-app-in-cluster-postgresql](../samples/web-app-in-cluster-postgresql/). | System-assigned identity, Azure CNI Overlay with the Azure network policy, one node with the cluster autoscaler (1 to 3 nodes), Microsoft Entra Workload ID, Entra ID authentication with Azure RBAC (admin groups from `AAD_ADMIN_GROUP_OBJECT_IDS`), Advanced Container Networking Services (ACNS), container registry. Azure Files and Azure Disk CSI drivers and CSI snapshot controller off. |
 | [01-configurable-cluster.sh](01-configurable-cluster.sh) | Asks which optional features to provision. Every question has a default and an environment variable, so the script also runs unattended. Pressing Enter at every question provisions the same features as the two scripts below. | Each feature of the scripts below can be turned off, plus the choice of cluster identity and network policy. Optionally installs NGINX Gateway Fabric and cert-manager. |
-| [01-system-assigned-managed-identity.sh](01-system-assigned-managed-identity.sh) | The full, production-like cluster, with a system-assigned identity. The samples' CI uses it. | Custom virtual network with Azure Bastion, Key Vault with the CSI secrets provider, Container Insights, a user node pool across availability zones, cluster autoscaler, Workload ID, KEDA, managed Gateway API CRDs, Entra ID with Azure RBAC, ACNS, container registry. |
+| [01-system-assigned-managed-identity.sh](01-system-assigned-managed-identity.sh) | The full, production-like cluster, with a system-assigned identity. The samples' CI uses it. | Custom virtual network with Azure Bastion, Key Vault with the CSI secrets provider, Container Insights, [diagnostic settings](#monitoring) on every resource, a user node pool across availability zones, cluster autoscaler, Workload ID, KEDA, managed Gateway API CRDs, Entra ID with Azure RBAC, ACNS, container registry. |
 | [01-user-assigned-managed-identity.sh](01-user-assigned-managed-identity.sh) | The same full cluster with a pre-created user-assigned identity, which also gets the Contributor role on the node resource group. | As above, with a user-assigned identity. |
 
 What the samples and tutorials need from the cluster:
@@ -37,7 +37,7 @@ Each question is skipped when its variable is set. Yes/no variables accept `true
 | `ENABLE_CLUSTER_AUTOSCALER` | `true` | The cluster autoscaler on both node pools, between 1 and 3 nodes (widened to include the node count). |
 | `ENABLE_WORKLOAD_IDENTITY` | `true` | The OIDC issuer and Microsoft Entra Workload ID. |
 | `CREATE_KEY_VAULT` | `true` | The `local-kv-test` vault, the `azure-keyvault-secrets-provider` add-on, and the Key Vault Administrator role for the add-on identity. |
-| `ENABLE_MONITORING` | `true` | The `local-log-analytics-test` workspace and the `monitoring` add-on (Container Insights). |
+| `ENABLE_MONITORING` | `true` | The `local-log-analytics-test` workspace, the `monitoring` add-on (Container Insights), and the `default` [diagnostic settings](#monitoring) of the cluster's resources. |
 | `ENABLE_FILE_CSI_DRIVER` | `true` | The Azure Files CSI driver and its `azurefile*` storage classes. `false` passes `--disable-file-driver`. |
 | `ENABLE_DISK_CSI_DRIVER` | `true` | The Azure Disk CSI driver and its `managed-csi*` storage classes. `false` passes `--disable-disk-driver`. |
 | `CREATE_VNET` | `true` | The `local-vnet-test` virtual network with `SystemSubnet`, plus `UserSubnet` when there is a user node pool, the Microsoft.Storage service endpoint on the node subnets (only with the Azure Files CSI driver, whose NFS volumes need it), and the Network Contributor role for the cluster identity. Without it, AKS creates and manages the virtual network. |
@@ -90,6 +90,30 @@ With every default, the configurable script creates the same resources as the or
 - The summary names the subscription the resources go to before asking to proceed, because the same command reaches Azure or the emulator depending on the Azure CLI configuration.
 - A re-run keeps the Helm releases of NGINX Gateway Fabric and cert-manager that are already deployed instead of upgrading them.
 - When the cluster already exists but was built with different answers, the script stops before creating anything and lists the differences, because most of them cannot be changed on an existing cluster.
+
+## Monitoring
+
+`01-system-assigned-managed-identity.sh`, `01-user-assigned-managed-identity.sh` and `01-configurable-cluster.sh` (with `ENABLE_MONITORING=true`, the default) create a diagnostic setting called `default` on each resource below. It sends the resource's platform metrics (`AllMetrics`) and these log categories to the `local-log-analytics-test` workspace. The configurable script skips the resources its answers leave out, and `01-basic-cluster.sh` creates no workspace and no diagnostic settings.
+
+| Resource | Log categories |
+| -------- | -------------- |
+| AKS cluster `local-aks-test` | `kube-apiserver`, `kube-audit-admin`, `kube-controller-manager`, `kube-scheduler`, `cluster-autoscaler`, `cloud-controller-manager`, `guard`, `csi-azurefile-controller`, `csi-snapshot-controller` |
+| Virtual network `local-vnet-test` | `VMProtectionAlerts` |
+| Public IP address of the Bastion host `local-bastion-ip-test` | `DDoSProtectionNotifications`, `DDoSMitigationFlowLogs`, `DDoSMitigationReports` |
+| Bastion host `local-bastion-test` | `BastionAuditLogs` |
+| Container registry `localacrtest` | `ContainerRegistryRepositoryEvents`, `ContainerRegistryLoginEvents` |
+| Key vault `local-kv-test` | `AuditEvent`, `AzurePolicyEvaluationDetails` |
+
+The AKS logs go to the resource-specific tables, such as `AKSAuditAdmin` and `AKSControlPlane`, instead of `AzureDiagnostics`. `kube-audit` is left out on purpose: it adds every `get` and `list` request to what `kube-audit-admin` collects, and Microsoft warns that it [can incur substantial cost](https://learn.microsoft.com/en-us/azure/aks/monitor-aks#azure-monitor-resource-logs). To collect it anyway, add `{"category": "kube-audit", "enabled": true}` to the AKS cluster's `--logs`.
+
+To list the diagnostic settings of a resource, such as the cluster:
+
+```bash
+az monitor diagnostic-settings list \
+  --resource "$(az aks show --name local-aks-test --resource-group local-rg --query id --output tsv)"
+```
+
+[tests/test-diagnostic-settings.sh](../tests/test-diagnostic-settings.sh) checks that every resource of the cluster has its `default` diagnostic setting.
 
 ## Add-on installers
 

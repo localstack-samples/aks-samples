@@ -75,6 +75,9 @@ aad_profile_admin_group_object_ids="<your-admin-group-object-id>"
 log_analytics_name="$prefix-log-analytics-$suffix"
 log_analytics_sku="PerGB2018"
 
+# Diagnostic settings that send the logs and metrics of the cluster's resources to the Log Analytics workspace
+diagnostic_settings_name="default"
+
 # Node count, node size, and ssh key location for AKS nodes
 node_size="Standard_D4ds_v5" # Standard_D4ds_v4
 ssh_key_value="$(native_path "$HOME/.ssh/id_rsa.pub")"
@@ -966,6 +969,286 @@ else
 		echo "Failed to assign [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type"
 		exit 1
 	fi
+fi
+
+# Retrieve the container registry id
+acr_id=$(az acr show \
+  --name $acr_name \
+  --resource-group $resource_group_name \
+  --query id \
+  --output tsv \
+  --only-show-errors 2>/dev/null)
+
+if [[ -n $acr_id ]]; then
+  echo "Successfully retrieved the id for the [$acr_name] container registry"
+else
+  echo "Failed to retrieve the id for the [$acr_name] container registry"
+  exit 1
+fi
+
+# Retrieve the id of the public IP address of the bastion host
+bastion_public_ip_id=$(az network public-ip show \
+  --name $bastion_public_ip_name \
+  --resource-group $resource_group_name \
+  --query id \
+  --output tsv \
+  --only-show-errors 2>/dev/null)
+
+if [[ -n $bastion_public_ip_id ]]; then
+  echo "Successfully retrieved the id for the [$bastion_public_ip_name] public IP address"
+else
+  echo "Failed to retrieve the id for the [$bastion_public_ip_name] public IP address"
+  exit 1
+fi
+
+# Retrieve the bastion host id
+bastion_host_id=$(az network bastion show \
+  --name $bastion_host_name \
+  --resource-group $resource_group_name \
+  --query id \
+  --output tsv \
+  --only-show-errors 2>/dev/null)
+
+if [[ -n $bastion_host_id ]]; then
+  echo "Successfully retrieved the id for the [$bastion_host_name] bastion host"
+else
+  echo "Failed to retrieve the id for the [$bastion_host_name] bastion host"
+  exit 1
+fi
+
+# Retrieve the AKS cluster id
+aks_cluster_id=$(az aks show \
+  --name $aks_cluster_name \
+  --resource-group $resource_group_name \
+  --query id \
+  --output tsv \
+  --only-show-errors 2>/dev/null)
+
+if [[ -n $aks_cluster_id ]]; then
+  echo "Successfully retrieved the id for the [$aks_cluster_name] AKS cluster"
+else
+  echo "Failed to retrieve the id for the [$aks_cluster_name] AKS cluster"
+  exit 1
+fi
+
+# Check whether the diagnostic settings for the AKS cluster already exist
+echo "Checking if [$diagnostic_settings_name] diagnostic settings for the [$aks_cluster_name] AKS cluster already exist..."
+az monitor diagnostic-settings show \
+  --name "$diagnostic_settings_name" \
+  --resource "$aks_cluster_id" \
+  --only-show-errors &>/dev/null
+
+if [[ $? != 0 ]]; then
+  echo "No [$diagnostic_settings_name] diagnostic settings for the [$aks_cluster_name] AKS cluster actually exist"
+  echo "Creating [$diagnostic_settings_name] diagnostic settings for the [$aks_cluster_name] AKS cluster..."
+
+  # Create the diagnostic settings for the AKS cluster to send the control plane logs to the resource-specific
+  # tables of the Log Analytics workspace (AKSAuditAdmin, AKSControlPlane). kube-audit is left out on purpose:
+  # it adds every get and list request to what kube-audit-admin collects, which can be costly on Azure.
+  az monitor diagnostic-settings create \
+    --name "$diagnostic_settings_name" \
+    --resource "$aks_cluster_id" \
+    --workspace "$workspace_resource_id" \
+    --export-to-resource-specific true \
+    --logs '[
+      {"category": "kube-apiserver", "enabled": true},
+      {"category": "kube-audit-admin", "enabled": true},
+      {"category": "kube-controller-manager", "enabled": true},
+      {"category": "kube-scheduler", "enabled": true},
+      {"category": "cluster-autoscaler", "enabled": true},
+      {"category": "cloud-controller-manager", "enabled": true},
+      {"category": "guard", "enabled": true},
+      {"category": "csi-azurefile-controller", "enabled": true},
+      {"category": "csi-snapshot-controller", "enabled": true}
+    ]' \
+    --metrics '[
+      {"category": "AllMetrics", "enabled": true}
+    ]' \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? == 0 ]]; then
+    echo "[$diagnostic_settings_name] diagnostic settings for the [$aks_cluster_name] AKS cluster successfully created"
+  else
+    echo "Failed to create [$diagnostic_settings_name] diagnostic settings for the [$aks_cluster_name] AKS cluster"
+    exit 1
+  fi
+else
+  echo "[$diagnostic_settings_name] diagnostic settings for the [$aks_cluster_name] AKS cluster already exist"
+fi
+
+# Check whether the diagnostic settings for the virtual network already exist
+echo "Checking if [$diagnostic_settings_name] diagnostic settings for the [$virtual_network_name] virtual network already exist..."
+az monitor diagnostic-settings show \
+  --name "$diagnostic_settings_name" \
+  --resource "$virtual_network_id" \
+  --only-show-errors &>/dev/null
+
+if [[ $? != 0 ]]; then
+  echo "No [$diagnostic_settings_name] diagnostic settings for the [$virtual_network_name] virtual network actually exist"
+  echo "Creating [$diagnostic_settings_name] diagnostic settings for the [$virtual_network_name] virtual network..."
+
+  # Create the diagnostic settings for the virtual network to send logs and metrics to the Log Analytics workspace
+  az monitor diagnostic-settings create \
+    --name "$diagnostic_settings_name" \
+    --resource "$virtual_network_id" \
+    --workspace "$workspace_resource_id" \
+    --logs '[
+      {"category": "VMProtectionAlerts", "enabled": true}
+    ]' \
+    --metrics '[
+      {"category": "AllMetrics", "enabled": true}
+    ]' \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? == 0 ]]; then
+    echo "[$diagnostic_settings_name] diagnostic settings for the [$virtual_network_name] virtual network successfully created"
+  else
+    echo "Failed to create [$diagnostic_settings_name] diagnostic settings for the [$virtual_network_name] virtual network"
+    exit 1
+  fi
+else
+  echo "[$diagnostic_settings_name] diagnostic settings for the [$virtual_network_name] virtual network already exist"
+fi
+
+# Check whether the diagnostic settings for the public IP address of the bastion host already exist
+echo "Checking if [$diagnostic_settings_name] diagnostic settings for the [$bastion_public_ip_name] public IP address already exist..."
+az monitor diagnostic-settings show \
+  --name "$diagnostic_settings_name" \
+  --resource "$bastion_public_ip_id" \
+  --only-show-errors &>/dev/null
+
+if [[ $? != 0 ]]; then
+  echo "No [$diagnostic_settings_name] diagnostic settings for the [$bastion_public_ip_name] public IP address actually exist"
+  echo "Creating [$diagnostic_settings_name] diagnostic settings for the [$bastion_public_ip_name] public IP address..."
+
+  # Create the diagnostic settings for the public IP address to send logs and metrics to the Log Analytics workspace.
+  # The DDoS categories only receive data while Azure DDoS Protection mitigates an attack on the address.
+  az monitor diagnostic-settings create \
+    --name "$diagnostic_settings_name" \
+    --resource "$bastion_public_ip_id" \
+    --workspace "$workspace_resource_id" \
+    --logs '[
+      {"category": "DDoSProtectionNotifications", "enabled": true},
+      {"category": "DDoSMitigationFlowLogs", "enabled": true},
+      {"category": "DDoSMitigationReports", "enabled": true}
+    ]' \
+    --metrics '[
+      {"category": "AllMetrics", "enabled": true}
+    ]' \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? == 0 ]]; then
+    echo "[$diagnostic_settings_name] diagnostic settings for the [$bastion_public_ip_name] public IP address successfully created"
+  else
+    echo "Failed to create [$diagnostic_settings_name] diagnostic settings for the [$bastion_public_ip_name] public IP address"
+    exit 1
+  fi
+else
+  echo "[$diagnostic_settings_name] diagnostic settings for the [$bastion_public_ip_name] public IP address already exist"
+fi
+
+# Check whether the diagnostic settings for the bastion host already exist
+echo "Checking if [$diagnostic_settings_name] diagnostic settings for the [$bastion_host_name] bastion host already exist..."
+az monitor diagnostic-settings show \
+  --name "$diagnostic_settings_name" \
+  --resource "$bastion_host_id" \
+  --only-show-errors &>/dev/null
+
+if [[ $? != 0 ]]; then
+  echo "No [$diagnostic_settings_name] diagnostic settings for the [$bastion_host_name] bastion host actually exist"
+  echo "Creating [$diagnostic_settings_name] diagnostic settings for the [$bastion_host_name] bastion host..."
+
+  # Create the diagnostic settings for the bastion host to send logs and metrics to the Log Analytics workspace
+  az monitor diagnostic-settings create \
+    --name "$diagnostic_settings_name" \
+    --resource "$bastion_host_id" \
+    --workspace "$workspace_resource_id" \
+    --logs '[
+      {"category": "BastionAuditLogs", "enabled": true}
+    ]' \
+    --metrics '[
+      {"category": "AllMetrics", "enabled": true}
+    ]' \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? == 0 ]]; then
+    echo "[$diagnostic_settings_name] diagnostic settings for the [$bastion_host_name] bastion host successfully created"
+  else
+    echo "Failed to create [$diagnostic_settings_name] diagnostic settings for the [$bastion_host_name] bastion host"
+    exit 1
+  fi
+else
+  echo "[$diagnostic_settings_name] diagnostic settings for the [$bastion_host_name] bastion host already exist"
+fi
+
+# Check whether the diagnostic settings for the container registry already exist
+echo "Checking if [$diagnostic_settings_name] diagnostic settings for the [$acr_name] container registry already exist..."
+az monitor diagnostic-settings show \
+  --name "$diagnostic_settings_name" \
+  --resource "$acr_id" \
+  --only-show-errors &>/dev/null
+
+if [[ $? != 0 ]]; then
+  echo "No [$diagnostic_settings_name] diagnostic settings for the [$acr_name] container registry actually exist"
+  echo "Creating [$diagnostic_settings_name] diagnostic settings for the [$acr_name] container registry..."
+
+  # Create the diagnostic settings for the container registry to send logs and metrics to the Log Analytics workspace
+  az monitor diagnostic-settings create \
+    --name "$diagnostic_settings_name" \
+    --resource "$acr_id" \
+    --workspace "$workspace_resource_id" \
+    --logs '[
+      {"category": "ContainerRegistryRepositoryEvents", "enabled": true},
+      {"category": "ContainerRegistryLoginEvents", "enabled": true}
+    ]' \
+    --metrics '[
+      {"category": "AllMetrics", "enabled": true}
+    ]' \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? == 0 ]]; then
+    echo "[$diagnostic_settings_name] diagnostic settings for the [$acr_name] container registry successfully created"
+  else
+    echo "Failed to create [$diagnostic_settings_name] diagnostic settings for the [$acr_name] container registry"
+    exit 1
+  fi
+else
+  echo "[$diagnostic_settings_name] diagnostic settings for the [$acr_name] container registry already exist"
+fi
+
+# Check whether the diagnostic settings for the key vault already exist
+echo "Checking if [$diagnostic_settings_name] diagnostic settings for the [$key_vault_name] key vault already exist..."
+az monitor diagnostic-settings show \
+  --name "$diagnostic_settings_name" \
+  --resource "$key_vault_id" \
+  --only-show-errors &>/dev/null
+
+if [[ $? != 0 ]]; then
+  echo "No [$diagnostic_settings_name] diagnostic settings for the [$key_vault_name] key vault actually exist"
+  echo "Creating [$diagnostic_settings_name] diagnostic settings for the [$key_vault_name] key vault..."
+
+  # Create the diagnostic settings for the key vault to send logs and metrics to the Log Analytics workspace
+  az monitor diagnostic-settings create \
+    --name "$diagnostic_settings_name" \
+    --resource "$key_vault_id" \
+    --workspace "$workspace_resource_id" \
+    --logs '[
+      {"category": "AuditEvent", "enabled": true},
+      {"category": "AzurePolicyEvaluationDetails", "enabled": true}
+    ]' \
+    --metrics '[
+      {"category": "AllMetrics", "enabled": true}
+    ]' \
+    --only-show-errors 1>/dev/null
+
+  if [[ $? == 0 ]]; then
+    echo "[$diagnostic_settings_name] diagnostic settings for the [$key_vault_name] key vault successfully created"
+  else
+    echo "Failed to create [$diagnostic_settings_name] diagnostic settings for the [$key_vault_name] key vault"
+    exit 1
+  fi
+else
+  echo "[$diagnostic_settings_name] diagnostic settings for the [$key_vault_name] key vault already exist"
 fi
 
 # Use the following command to configure kubectl to connect to the new Kubernetes cluster
