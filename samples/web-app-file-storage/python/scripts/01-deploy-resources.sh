@@ -42,7 +42,7 @@ if [[ -z "$PROVISIONING_MODE" ]]; then
 	done
 fi
 
-PROVISIONING_MODE="${PROVISIONING_MODE,,}"
+PROVISIONING_MODE="$(lowercase "$PROVISIONING_MODE")"
 
 if [[ "$PROVISIONING_MODE" != 'static' && "$PROVISIONING_MODE" != 'dynamic' ]]; then
 	echo "Invalid provisioning mode [$PROVISIONING_MODE]: expected [static] or [dynamic]"
@@ -80,7 +80,7 @@ if [[ -z "$FILE_SHARE_PROTOCOL" ]]; then
 	done
 fi
 
-FILE_SHARE_PROTOCOL="${FILE_SHARE_PROTOCOL,,}"
+FILE_SHARE_PROTOCOL="$(lowercase "$FILE_SHARE_PROTOCOL")"
 
 if [[ "$FILE_SHARE_PROTOCOL" != 'smb' && "$FILE_SHARE_PROTOCOL" != 'nfs' ]]; then
 	echo "Invalid file share protocol [$FILE_SHARE_PROTOCOL]: expected [smb] or [nfs]"
@@ -104,7 +104,7 @@ else
 	exit 1
 fi
 
-echo "Deploying the resources for [$PROVISIONING_MODE] provisioning over [${FILE_SHARE_PROTOCOL^^}]..."
+echo "Deploying the resources for [$PROVISIONING_MODE] provisioning over [$(uppercase "$FILE_SHARE_PROTOCOL")]..."
 
 # Create a resource group
 echo "Checking if resource group [$RESOURCE_GROUP_NAME] exists in the subscription [$SUBSCRIPTION_NAME]..."

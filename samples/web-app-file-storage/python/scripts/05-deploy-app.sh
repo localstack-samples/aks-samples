@@ -26,7 +26,7 @@ if [[ "$FILE_SHARE_PROTOCOL" != 'smb' && "$FILE_SHARE_PROTOCOL" != 'nfs' ]]; the
 	exit 1
 fi
 
-echo "Deploying the app with [$PROVISIONING_MODE] provisioning over [${FILE_SHARE_PROTOCOL^^}]..."
+echo "Deploying the app with [$PROVISIONING_MODE] provisioning over [$(uppercase "$FILE_SHARE_PROTOCOL")]..."
 
 # Pick the storage account that holds the file share for the selected protocol
 if [[ "$FILE_SHARE_PROTOCOL" == 'nfs' ]]; then
