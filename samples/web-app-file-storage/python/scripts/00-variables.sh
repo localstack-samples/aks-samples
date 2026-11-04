@@ -1,11 +1,21 @@
 # Variables
 
+# Lowercase and uppercase conversions that also run on bash 3.2, the /bin/bash of macOS: the
+# ${value,,} and ${value^^} expansions need bash 4 and fail there with "bad substitution".
+lowercase() {
+	printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+uppercase() {
+	printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
+}
+
 # Azure Resources
 PREFIX='local'
 SUFFIX='test'
 LOCATION='italynorth'
 RESOURCE_GROUP_NAME="${PREFIX}-rg"
-ACR_NAME="${PREFIX,,}acr${SUFFIX,,}"
+ACR_NAME="$(lowercase "$PREFIX")acr$(lowercase "$SUFFIX")"
 ACR_SKU='Standard'
 AKS_CLUSTER_NAME="${PREFIX}-aks-${SUFFIX}"
 SUBSCRIPTION_NAME=$(az account show --query name --output tsv)

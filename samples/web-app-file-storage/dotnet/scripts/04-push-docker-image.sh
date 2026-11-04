@@ -20,7 +20,7 @@ fi
 FULL_IMAGE="${ACR_LOGIN_SERVER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 # Tag the local image with the loginServer of ACR
-docker tag ${IMAGE_NAME,,}:$IMAGE_TAG $ACR_LOGIN_SERVER/${IMAGE_NAME,,}:$IMAGE_TAG
+docker tag $(lowercase "$IMAGE_NAME"):$IMAGE_TAG $ACR_LOGIN_SERVER/$(lowercase "$IMAGE_NAME"):$IMAGE_TAG
 
 if [ $? -eq 0 ]; then
 	echo "Docker image [$IMAGE_NAME] tagged as [$FULL_IMAGE] successfully."
@@ -30,7 +30,7 @@ else
 fi
 
 # Push the container image to ACR
-docker push $ACR_LOGIN_SERVER/${IMAGE_NAME,,}:$IMAGE_TAG
+docker push $ACR_LOGIN_SERVER/$(lowercase "$IMAGE_NAME"):$IMAGE_TAG
 
 if [ $? -eq 0 ]; then
 	echo "Docker image [$FULL_IMAGE] pushed to ACR successfully."
