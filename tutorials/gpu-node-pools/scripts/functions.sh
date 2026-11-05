@@ -130,6 +130,33 @@ wait_for_running_pod() {
   return 1
 }
 
+# wait_for_training_progress JOB: wait until a running pod of JOB logs training progress, the "Step N, loss X" line
+# train.py prints every 30 seconds of training, and print the node that pod runs on. A pod is Running as soon as its
+# container starts, while it still installs its libraries and receives its message.
+wait_for_training_progress() {
+  local job=$1 deadline pod node
+  deadline=$((SECONDS + TRAINING_PROGRESS_TIMEOUT))
+  while ((SECONDS < deadline)); do
+    pod=$(kubectl get pods \
+      --namespace "$NAMESPACE" \
+      --selector "job-name=$job" \
+      --field-selector status.phase=Running \
+      --output jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    if [[ -n $pod ]] && kubectl logs "$pod" --namespace "$NAMESPACE" 2>/dev/null | grep -q '^Step '; then
+      node=$(kubectl get pod "$pod" \
+        --namespace "$NAMESPACE" \
+        --output jsonpath='{.spec.nodeName}' 2>/dev/null)
+      if [[ -n $node ]]; then
+        echo "$node"
+        return 0
+      fi
+    fi
+    echo "Waiting for the pod of the [$job] job to report training progress..." >&2
+    sleep "$POLL_INTERVAL"
+  done
+  return 1
+}
+
 # wait_for_job_completion JOB: wait until JOB completes; fail as soon as it fails
 wait_for_job_completion() {
   local job=$1 deadline conditions

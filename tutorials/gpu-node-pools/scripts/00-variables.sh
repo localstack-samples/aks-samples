@@ -95,5 +95,7 @@ EVICTED_JOB_TRAIN_SECONDS=600
 # few minutes to start and to install the NVIDIA driver, and the PyTorch image takes a few minutes to pull.
 POLL_INTERVAL=10
 JOB_START_TIMEOUT=1800
+# A running pod installs its libraries and receives its message before it trains, then logs its progress every 30 s
+TRAINING_PROGRESS_TIMEOUT=600
 JOB_TIMEOUT=2400
 NODE_DELETION_TIMEOUT=900

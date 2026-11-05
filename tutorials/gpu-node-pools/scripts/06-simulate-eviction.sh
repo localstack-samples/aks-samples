@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Step 6: send a longer training request and, while its job's pod runs, simulate the eviction of its Spot node with
-# az vmss simulate-eviction. As when Azure needs the capacity back, AKS taints the node
+# Step 6: send a longer training request and, once its job's pod reports training progress, simulate the eviction of
+# its Spot node with az vmss simulate-eviction. As when Azure needs the capacity back, AKS taints the node
 # remediator.kubernetes.azure.com/unschedulable:NoSchedule, evicts its pods and deletes the node with its scale set
 # instance. The job then starts a replacement pod, which waits for the next node the cluster autoscaler adds and
 # completes there. The message was deleted when the first pod received it, so the replacement pod finds the queue
@@ -22,12 +22,23 @@ if [[ -z $JOB ]]; then
   exit 1
 fi
 echo "Waiting for the pod of the [$JOB] job to run..."
-EVICTED_NODE=$(wait_for_running_pod "$JOB")
-if [[ -z $EVICTED_NODE ]]; then
+RUNNING_NODE=$(wait_for_running_pod "$JOB")
+if [[ -z $RUNNING_NODE ]]; then
   echo "No pod of the [$JOB] job runs after $JOB_START_TIMEOUT seconds"
   exit 1
 fi
-echo "The pod of the [$JOB] job runs on the [$EVICTED_NODE] node"
+echo "The pod of the [$JOB] job runs on the [$RUNNING_NODE] node"
+
+# A running pod may still be installing its libraries or receiving its message. Evict its node only once the pod
+# trains, so that the eviction interrupts the training and the replacement pod finds the message already gone.
+echo "Waiting for the pod of the [$JOB] job to report training progress..."
+EVICTED_NODE=$(wait_for_training_progress "$JOB")
+if [[ -z $EVICTED_NODE ]]; then
+  echo "The pod of the [$JOB] job reported no training progress within $TRAINING_PROGRESS_TIMEOUT seconds. Its log:"
+  print_job_logs "$JOB"
+  exit 1
+fi
+echo "The pod of the [$JOB] job trains on the [$EVICTED_NODE] node"
 
 # The node's provider id names its scale set instance:
 # azure:///subscriptions/.../resourceGroups/<node resource group>/providers/Microsoft.Compute/virtualMachineScaleSets/<scale set>/virtualMachines/<instance id>
