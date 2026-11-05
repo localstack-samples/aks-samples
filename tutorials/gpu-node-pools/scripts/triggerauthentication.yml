@@ -1,0 +1,11 @@
+# Tells the KEDA operator to read the queue's message count as the managed identity, with workload identity.
+# 04-deploy-scaled-job.sh fills in the name, the namespace and the identity's client id.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: ""
+  namespace: ""
+spec:
+  podIdentity:
+    provider: azure-workload
+    identityId: ""

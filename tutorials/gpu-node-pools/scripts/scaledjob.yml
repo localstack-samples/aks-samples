@@ -1,0 +1,91 @@
+# The KEDA ScaledJob: one Kubernetes Job for each message on the queue. Its pod asks for one GPU, selects the GPU
+# pool's nodes and tolerates their taints, and signs in with workload identity. 04-deploy-scaled-job.sh fills in the
+# empty values, and sets the backoff limit, the node selector, the tolerations, the resources, the polling interval and
+# the replica bound from 00-variables.sh.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: ""
+  namespace: ""
+spec:
+  jobTargetRef:
+    backoffLimit: 3
+    template:
+      metadata:
+        labels:
+          azure.workload.identity/use: "true"
+      spec:
+        serviceAccountName: ""
+        restartPolicy: Never
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+        nodeSelector:
+          workload: gpu
+        tolerations:
+          - key: "sku"
+            operator: "Equal"
+            value: "gpu"
+            effect: "NoSchedule"
+          - key: "kubernetes.azure.com/scalesetpriority"
+            operator: "Equal"
+            value: "spot"
+            effect: "NoSchedule"
+        containers:
+          - name: train
+            image: ""
+            command: ["sh", "-c"]
+            args:
+              # Install the libraries into the writable /tmp, then train; filled in with JOB_PYTHON_PACKAGES
+              - ""
+            env:
+              - name: SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE
+                value: ""
+              - name: SERVICE_BUS_CUSTOM_ENDPOINT
+                value: ""
+              - name: SERVICE_BUS_QUEUE_NAME
+                value: ""
+              - name: DEFAULT_TRAIN_SECONDS
+                value: ""
+              - name: HOME
+                value: /tmp
+            resources:
+              requests:
+                nvidia.com/gpu: 1
+                cpu: "1"
+                memory: 2Gi
+              limits:
+                nvidia.com/gpu: 1
+                memory: 4Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+            volumeMounts:
+              - name: tmp
+                mountPath: /tmp
+              - name: script
+                mountPath: /app
+                readOnly: true
+        volumes:
+          - name: tmp
+            emptyDir: {}
+          - name: script
+            configMap:
+              name: ""
+  pollingInterval: 10
+  maxReplicaCount: 2
+  triggers:
+    - type: azure-servicebus
+      authenticationRef:
+        name: ""
+      metadata:
+        queueName: ""
+        namespace: ""
+        # One job for each message waiting on the queue
+        messageCount: "1"
+        # cloud: Private is what lets the scaler use a custom endpointSuffix, which the emulator needs
+        cloud: Private
+        endpointSuffix: ""
