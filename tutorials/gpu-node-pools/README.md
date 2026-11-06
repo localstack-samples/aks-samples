@@ -80,6 +80,12 @@ cd gpu-node-pools/scripts
 # ./07-cleanup.sh   # when finished
 ```
 
+> [!NOTE]
+> The first time you run the tutorial, the job's pod can take a few minutes to start running: the new GPU node has to download the pod's image, `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` (about 3 GB), which can take between 5 and 10 minutes depending on your network bandwidth.
+> Until the download completes, the pod stays `Pending`, and `05-run-training-job.sh` keeps printing `(pods: Pending)`.
+> Every node the cluster autoscaler adds to the GPU pool starts without the image, so the wait comes back whenever a run finds the pool scaled back to zero, and in `06-simulate-eviction.sh` for the node that replaces the evicted one.
+> To check that the pod is downloading its image rather than stuck, run `kubectl get events --namespace gpu-training --watch` in another terminal: it shows `Pulling image` when the download starts and `Successfully pulled image` when it ends.
+
 ### Kubernetes manifests
 
 Every manifest in [scripts/](scripts/) is valid, applyable YAML whose environment-specific fields are empty strings; the scripts fill them in with `yq`, which is why the same files work against the emulator and against Azure without edits.
