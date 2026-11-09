@@ -81,9 +81,10 @@ cd gpu-node-pools/scripts
 ```
 
 > [!NOTE]
-> The first time you run the tutorial, the job's pod can take a few minutes to start running: the new GPU node has to download the pod's image, `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` (about 3 GB), which can take between 5 and 10 minutes depending on your network bandwidth.
+> Expect every run of a training job, not only the first, to wait several minutes before its pod starts: the GPU node that runs the pod has to download the pod's image, `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` (about 3 GB), which takes between 5 and 10 minutes depending on your network bandwidth.
+> The image doesn't outlive the node that downloaded it: each node the cluster autoscaler adds to the GPU pool starts without it, and the emulator's autoscaler removes a node, together with its images, once the node has been idle for 30 seconds (AKS waits 10 minutes by default).
+> So `05-run-training-job.sh` waits for the download each time you run it, and `06-simulate-eviction.sh` waits twice: for the node its pod first runs on, and for the node that replaces the evicted one.
 > Until the download completes, the pod stays `Pending`, and `05-run-training-job.sh` keeps printing `(pods: Pending)`.
-> Every node the cluster autoscaler adds to the GPU pool starts without the image, so the wait comes back whenever a run finds the pool scaled back to zero, and in `06-simulate-eviction.sh` for the node that replaces the evicted one.
 > To check that the pod is downloading its image rather than stuck, run `kubectl get events --namespace gpu-training --watch` in another terminal: it shows `Pulling image` when the download starts and `Successfully pulled image` when it ends.
 
 ### Kubernetes manifests
