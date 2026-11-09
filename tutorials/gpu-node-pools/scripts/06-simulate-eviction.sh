@@ -3,9 +3,10 @@
 # Step 6: send a longer training request and, once its job's pod reports training progress, simulate the eviction of
 # its Spot node with az vmss simulate-eviction. As when Azure needs the capacity back, AKS taints the node
 # remediator.kubernetes.azure.com/unschedulable:NoSchedule, evicts its pods and deletes the node with its scale set
-# instance. The job then starts a replacement pod, which waits for the next node the cluster autoscaler adds and
-# completes there. The message was deleted when the first pod received it, so the replacement pod finds the queue
-# empty and trains for the default time.
+# instance: the pool's eviction policy (Delete) applies to an evicted node, not its scale-down mode (Deallocate). The
+# job then starts a replacement pod, which waits for the next node the cluster autoscaler adds, a new node that
+# downloads the job's image again, and completes there. The message was deleted when the first pod received it, so
+# the replacement pod finds the queue empty and trains for the default time.
 # https://learn.microsoft.com/en-us/azure/virtual-machine-scale-sets/use-spot#simulate-an-eviction
 
 # Variables

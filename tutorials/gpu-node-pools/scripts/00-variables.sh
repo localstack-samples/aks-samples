@@ -17,14 +17,21 @@ LOCATION="ItalyNorth"
 # nvidia.com/gpu, with 18 vCPUs. Spot VMs count against the region's Spot vCPU quota (lowPriorityCores) whatever their
 # VM family, and Azure starts one only when it has Spot capacity. Check the quota with:
 #   az vm list-usage --location italynorth --query "[?name.value=='lowPriorityCores']" --output table
-# The pool starts with no node: the cluster autoscaler adds one when a pod asks for a GPU and removes it when it is idle.
+# The pool starts with no node: the cluster autoscaler adds one when a pod asks for a GPU, and deallocates it when it
+# is idle instead of deleting it (scale-down mode Deallocate). A deallocated node keeps its OS disk, and with it the
+# images its pods pulled, and the autoscaler starts it again, before it adds any new node, when a pod asks for a GPU
+# again. Ephemeral OS disks don't support it, hence a managed OS disk. A Spot eviction still deletes the node: the
+# eviction policy decides what happens to an evicted node, the scale-down mode what happens to an idle one.
+# https://learn.microsoft.com/en-us/azure/aks/scale-down-mode
 GPU_NODE_POOL_NAME="gpupool"
 GPU_NODE_VM_SIZE="Standard_NV18ads_A10_v5"
 GPU_NODE_OS_SKU="AzureLinux"
+GPU_NODE_OS_DISK_TYPE="Managed"
 GPU_NODE_MIN_COUNT=0
 GPU_NODE_MAX_COUNT=1
 GPU_NODE_PRIORITY="Spot"
 GPU_NODE_EVICTION_POLICY="Delete"
+GPU_NODE_SCALE_DOWN_MODE="Deallocate"
 # -1 pays up to the on-demand price, so Azure evicts the node when it needs the capacity back, never for its price
 GPU_NODE_SPOT_MAX_PRICE=-1
 # The jobs select the pool's nodes by this label, and only pods that tolerate this taint run on them

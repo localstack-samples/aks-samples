@@ -1,13 +1,16 @@
 #!/bin/bash
 
 # Step 1: make sure the cluster runs the KEDA add-on, merge its credentials into kubeconfig, and add a Spot GPU node
-# pool that starts with no node and that the cluster autoscaler grows to one node when a pod asks for a GPU.
+# pool that starts with no node, that the cluster autoscaler grows to one node when a pod asks for a GPU, and whose
+# idle node the autoscaler deallocates, keeping the images on its disk for the next run, instead of deleting it.
 #
 # The cluster-creation scripts already pass --enable-keda, --enable-oidc-issuer and --enable-workload-identity, so on
-# such a cluster this script only adds the node pool. The pool's VM size and priority can't change after it is
-# created, so an existing pool with other values stops the script rather than being reused.
+# such a cluster this script only adds the node pool. The pool's VM size, priority and OS disk type can't change after
+# it is created, so an existing pool with other values stops the script rather than being reused; its scale-down mode
+# can, so an existing pool gets the one this tutorial uses.
 # https://learn.microsoft.com/en-us/azure/aks/use-nvidia-gpu
 # https://learn.microsoft.com/en-us/azure/aks/spot-node-pool
+# https://learn.microsoft.com/en-us/azure/aks/scale-down-mode
 
 # Variables
 source ./00-variables.sh
@@ -70,16 +73,36 @@ EXISTING_POOL=$(az aks nodepool show \
   --name "$GPU_NODE_POOL_NAME" \
   --cluster-name "$AKS_NAME" \
   --resource-group "$AKS_RESOURCE_GROUP_NAME" \
-  --query "[vmSize, scaleSetPriority]" \
+  --query "[vmSize, scaleSetPriority, osDiskType]" \
   --output tsv \
   --only-show-errors 2>/dev/null | tr -d '\r' | tr '\t\n' '  ')
 if [[ -n $EXISTING_POOL ]]; then
-  if [[ $EXISTING_POOL != "$GPU_NODE_VM_SIZE $GPU_NODE_PRIORITY " ]]; then
-    echo "The [$GPU_NODE_POOL_NAME] node pool exists with VM size and priority [$EXISTING_POOL], not [$GPU_NODE_VM_SIZE $GPU_NODE_PRIORITY]"
+  if [[ $EXISTING_POOL != "$GPU_NODE_VM_SIZE $GPU_NODE_PRIORITY $GPU_NODE_OS_DISK_TYPE " ]]; then
+    echo "The [$GPU_NODE_POOL_NAME] node pool exists with VM size, priority and OS disk type [$EXISTING_POOL], not [$GPU_NODE_VM_SIZE $GPU_NODE_PRIORITY $GPU_NODE_OS_DISK_TYPE]"
     echo "Delete it with 07-cleanup.sh, or change GPU_NODE_POOL_NAME in 00-variables.sh"
     exit 1
   fi
   echo "The [$GPU_NODE_POOL_NAME] node pool already exists"
+  # A pool added before this tutorial set the scale-down mode deletes its idle node, and with it the job's image
+  SCALE_DOWN_MODE=$(az aks nodepool show \
+    --name "$GPU_NODE_POOL_NAME" \
+    --cluster-name "$AKS_NAME" \
+    --resource-group "$AKS_RESOURCE_GROUP_NAME" \
+    --query scaleDownMode \
+    --output tsv \
+    --only-show-errors 2>/dev/null | tr -d '\r')
+  if [[ $SCALE_DOWN_MODE != "$GPU_NODE_SCALE_DOWN_MODE" ]]; then
+    echo "Setting the scale-down mode of the [$GPU_NODE_POOL_NAME] node pool to [$GPU_NODE_SCALE_DOWN_MODE]..."
+    if ! az aks nodepool update \
+      --name "$GPU_NODE_POOL_NAME" \
+      --cluster-name "$AKS_NAME" \
+      --resource-group "$AKS_RESOURCE_GROUP_NAME" \
+      --scale-down-mode "$GPU_NODE_SCALE_DOWN_MODE" \
+      --only-show-errors 1>/dev/null; then
+      echo "Failed to set the scale-down mode of the [$GPU_NODE_POOL_NAME] node pool"
+      exit 1
+    fi
+  fi
 else
   echo "Adding the [$GPU_NODE_POOL_NAME] Spot node pool of [$GPU_NODE_VM_SIZE] VMs, with $GPU_NODE_MIN_COUNT to $GPU_NODE_MAX_COUNT nodes, to the [$AKS_NAME] AKS cluster..."
   if ! az aks nodepool add \
@@ -89,9 +112,11 @@ else
     --mode User \
     --node-vm-size "$GPU_NODE_VM_SIZE" \
     --os-sku "$GPU_NODE_OS_SKU" \
+    --node-osdisk-type "$GPU_NODE_OS_DISK_TYPE" \
     --priority "$GPU_NODE_PRIORITY" \
     --eviction-policy "$GPU_NODE_EVICTION_POLICY" \
     --spot-max-price "$GPU_NODE_SPOT_MAX_PRICE" \
+    --scale-down-mode "$GPU_NODE_SCALE_DOWN_MODE" \
     --enable-cluster-autoscaler \
     --node-count "$GPU_NODE_MIN_COUNT" \
     --min-count "$GPU_NODE_MIN_COUNT" \
@@ -110,6 +135,6 @@ az aks nodepool show \
   --name "$GPU_NODE_POOL_NAME" \
   --cluster-name "$AKS_NAME" \
   --resource-group "$AKS_RESOURCE_GROUP_NAME" \
-  --query "{name: name, vmSize: vmSize, count: count, minCount: minCount, maxCount: maxCount, scaleSetPriority: scaleSetPriority, scaleSetEvictionPolicy: scaleSetEvictionPolicy, spotMaxPrice: spotMaxPrice, gpuProfile: gpuProfile, nodeLabels: nodeLabels, nodeTaints: nodeTaints}" \
+  --query "{name: name, vmSize: vmSize, osDiskType: osDiskType, count: count, minCount: minCount, maxCount: maxCount, scaleDownMode: scaleDownMode, scaleSetPriority: scaleSetPriority, scaleSetEvictionPolicy: scaleSetEvictionPolicy, spotMaxPrice: spotMaxPrice, gpuProfile: gpuProfile, nodeLabels: nodeLabels, nodeTaints: nodeTaints}" \
   --output json \
   --only-show-errors
