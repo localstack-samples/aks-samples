@@ -66,35 +66,6 @@ cat namespace.yml |
 yq "(.metadata.name)|="\""$NAMESPACE"\" |
 kubectl apply -f -
 
-# Create the LocalStack root CA configmap so the app can verify the cosmos endpoint's
-# TLS chain. The cert is signed by LocalStack's root CA at emulator startup — see
-# localstack-pro-azure/.../cosmos/nosql/emulator.py default_cert_store().get_or_create.
-# Skipped when LOCALSTACK_URL is empty (real-Azure mode).
-if [ -n "$LOCALSTACK_URL" ]; then
-	echo "Fetching LocalStack root CA from $LOCALSTACK_URL..."
-
-	# Fetch the target CA URL
-	CA_URL=$(curl -sf "$LOCALSTACK_URL/_localstack/certs" | jq -r .ca.url)
-
-	if [ -z "$CA_URL" ] || [ "$CA_URL" = "null" ]; then
-		echo "Error: Failed to extract CA URL from LocalStack endpoint." >&2
-		exit 1
-	fi
-
-	# Fetch the actual PEM payload
-	PEM_DATA=$(curl -sf "$CA_URL")
-
-	if [ -z "$PEM_DATA" ]; then
-		echo "Error: Retrieved empty CA certificate payload." >&2
-		exit 1
-	fi
-
-	# Generate and apply the configmap from a literal string (avoid issues with newlines in the PEM data when using --from-file or --from-env-file)
-	kubectl -n "$NAMESPACE" create configmap localstack-ca \
-		--from-literal=localstack.crt="$PEM_DATA" \
-		--dry-run=client -o yaml | kubectl apply -f -
-fi
-
 # Create secret with the Cosmos DB primary key and Flask secret key
 cat secret.yml |
 yq "(.metadata.namespace)|="\""$NAMESPACE"\" |

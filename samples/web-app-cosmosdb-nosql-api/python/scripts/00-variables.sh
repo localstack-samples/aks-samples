@@ -19,10 +19,6 @@ AZURECOSMOSDB_CONTAINERNAME='activities'
 AZURECOSMOSDB_PARTITION_KEY='/username'
 THROUGHPUT=400
 
-# LocalStack runtime URL. Set to empty when running against real Azure to skip
-# the LocalStack root-CA install step in 03-run-docker-container.sh / 05-deploy-app.sh.
-LOCALSTACK_URL='http://localhost:4566'
-
 # Application config
 LOGIN_NAME='paolo'
 
