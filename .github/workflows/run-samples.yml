@@ -307,6 +307,21 @@ jobs:
           unzip -o -q -j "$RUNNER_TEMP/sqlcmd.zip" sqlcmd.exe -d "$RUNNER_TEMP/bin"
           sqlcmd --version
 
+      - name: Install mongosh
+        # The Azure Cosmos DB for MongoDB sample seeds its collection with mongosh, which the Linux runner image
+        # does not ship (the Windows runner image does). The release and its SHA-256 are pinned.
+        if: matrix.os == 'linux' && matrix.sample == 'web-app-cosmosdb-mongodb-api'
+        env:
+          MONGOSH_VERSION: 2.14.1
+          MONGOSH_SHA256: 8d24940ebe3675959b518fd41ea16b4e2182d6a75c09777db09cfa64e18834a1
+        run: |
+          curl --silent --show-error --fail --location --retry 3 --output "$RUNNER_TEMP/mongosh.tgz" \
+            "https://github.com/mongodb-js/mongosh/releases/download/v${MONGOSH_VERSION}/mongosh-${MONGOSH_VERSION}-linux-x64.tgz"
+          echo "${MONGOSH_SHA256}  $RUNNER_TEMP/mongosh.tgz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/mongosh.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/mongosh-${MONGOSH_VERSION}-linux-x64/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/mongosh-${MONGOSH_VERSION}-linux-x64/bin/mongosh" --version
+
       - name: Create the SSH key the cluster script provisions the node pools with
         run: ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa -q
 

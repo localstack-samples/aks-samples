@@ -170,5 +170,112 @@ else
 	exit 1
 fi
 
+# Insert the sample activities, so the app does not start with an empty list. Each activity is an item
+# {id, username, activity, timestamp} of the user the app shows, the shape the app itself reads and writes; these
+# are the activities the SQL Database, MySQL and PostgreSQL samples seed. The Azure CLI has no command for items,
+# so the script calls the Cosmos DB REST API with curl and signs each request with the primary master key. An
+# item id is the MD5 of the user and a fixed name, so a re-run inserts only the missing activities: Cosmos DB
+# answers 409 Conflict for an id that already exists.
+# curl and openssl must be available on the host machine.
+for TOOL in curl openssl; do
+	if ! command -v $TOOL &>/dev/null; then
+		echo "$TOOL is not installed on the host. Install it and re-run."
+		exit 1
+	fi
+done
+
+lowercase() {
+	echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+# Print the Authorization header of a Cosmos DB REST request, signed with the primary master key as described in
+# https://learn.microsoft.com/rest/api/cosmos-db/access-control-on-cosmosdb-resources
+cosmosdb_authorization() {
+	local verb=$1
+	local resource_type=$2
+	local resource_link=$3
+	local request_date=$4
+	local key_hex
+	local signature
+
+	key_hex=$(printf '%s' "$AZURECOSMOSDB_PRIMARY_KEY" | openssl base64 -d -A | od -An -v -tx1 | tr -d ' \n')
+	signature=$(printf '%s\n%s\n%s\n%s\n\n' \
+		"$(lowercase "$verb")" \
+		"$(lowercase "$resource_type")" \
+		"$resource_link" \
+		"$(lowercase "$request_date")" |
+		openssl dgst -sha256 -mac HMAC -macopt "hexkey:$key_hex" -binary |
+		openssl base64 -A |
+		sed -e 's/+/%2B/g' -e 's/\//%2F/g' -e 's/=/%3D/g')
+	echo "type%3Dmaster%26ver%3D1.0%26sig%3D$signature"
+}
+
+SAMPLE_ACTIVITIES=(
+	"pisa|Visit the Leaning Tower in Pisa"
+	"volterra|Explore Etruscan walls in Volterra"
+	"san_gimignano|Climb Torre Grossa in San Gimignano"
+	"siena|Walk across Piazza del Campo in Siena"
+	"montalcino|Taste Brunello wine in Montalcino"
+	"pienza|Sample Pecorino cheese in Pienza"
+	"florence|Admire Michelangelo's David in Florence"
+	"viareggio_beach|Relax by the beach in Viareggio"
+	"viareggio_promenade|Stroll along the Viareggio promenade"
+)
+DOCUMENTS_LINK="dbs/$AZURECOSMOSDB_DATABASENAME/colls/$AZURECOSMOSDB_CONTAINERNAME"
+DOCUMENTS_URL="${AZURECOSMOSDB_ENDPOINT%/}/$DOCUMENTS_LINK/docs"
+TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%S.000000')
+
+for SAMPLE_ACTIVITY in "${SAMPLE_ACTIVITIES[@]}"; do
+	SAMPLE_NAME="${SAMPLE_ACTIVITY%%|*}"
+	ACTIVITY="${SAMPLE_ACTIVITY#*|}"
+	ITEM_ID=$(printf '%s' "${LOGIN_NAME}_${SAMPLE_NAME}_seed" | openssl dgst -md5 | sed 's/^.*= //')
+	REQUEST_DATE=$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S GMT')
+
+	# The response body is kept only to print it on failure; the last line of the output is the HTTP status
+	echo "Inserting sample activity [$ACTIVITY] as item [$ITEM_ID] into container [$AZURECOSMOSDB_CONTAINERNAME]..."
+	RESPONSE=$(curl --silent --show-error \
+		--request POST "$DOCUMENTS_URL" \
+		--header "Authorization: $(cosmosdb_authorization POST docs "$DOCUMENTS_LINK" "$REQUEST_DATE")" \
+		--header "x-ms-date: $REQUEST_DATE" \
+		--header "x-ms-version: 2018-12-31" \
+		--header "x-ms-documentdb-partitionkey: [\"$LOGIN_NAME\"]" \
+		--header "Content-Type: application/json" \
+		--data "{\"id\": \"$ITEM_ID\", \"username\": \"$LOGIN_NAME\", \"activity\": \"$ACTIVITY\", \"timestamp\": \"$TIMESTAMP\"}" \
+		--write-out '\n%{http_code}')
+	STATUS_CODE="${RESPONSE##*$'\n'}"
+
+	if [[ $STATUS_CODE == 201 ]]; then
+		echo "Item [$ITEM_ID] inserted successfully."
+	elif [[ $STATUS_CODE == 409 ]]; then
+		echo "Item [$ITEM_ID] already exists."
+	else
+		echo "Failed to insert item [$ITEM_ID]: HTTP status [$STATUS_CODE] ${RESPONSE%$'\n'*}"
+		exit 1
+	fi
+done
+
+# Query the activities of the user back
+echo "Querying the activities of [$LOGIN_NAME] from container [$AZURECOSMOSDB_CONTAINERNAME]..."
+REQUEST_DATE=$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S GMT')
+RESPONSE=$(curl --silent --show-error \
+	--request POST "$DOCUMENTS_URL" \
+	--header "Authorization: $(cosmosdb_authorization POST docs "$DOCUMENTS_LINK" "$REQUEST_DATE")" \
+	--header "x-ms-date: $REQUEST_DATE" \
+	--header "x-ms-version: 2018-12-31" \
+	--header "x-ms-documentdb-isquery: True" \
+	--header "x-ms-documentdb-partitionkey: [\"$LOGIN_NAME\"]" \
+	--header "Content-Type: application/query+json" \
+	--data "{\"query\": \"SELECT c.id, c.activity FROM c WHERE c.username = @username\", \"parameters\": [{\"name\": \"@username\", \"value\": \"$LOGIN_NAME\"}]}" \
+	--write-out '\n%{http_code}')
+STATUS_CODE="${RESPONSE##*$'\n'}"
+
+if [[ $STATUS_CODE == 200 ]]; then
+	echo "Activities of [$LOGIN_NAME] queried successfully:"
+	grep -o '"activity": *"[^"]*"' <<<"${RESPONSE%$'\n'*}" | sed -e 's/^"activity": *"/  - /' -e 's/"$//'
+else
+	echo "Failed to query the activities of [$LOGIN_NAME]: HTTP status [$STATUS_CODE] ${RESPONSE%$'\n'*}"
+	exit 1
+fi
+
 export AZURECOSMOSDB_ENDPOINT
 export AZURECOSMOSDB_PRIMARY_KEY
