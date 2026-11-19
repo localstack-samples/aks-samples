@@ -1,7 +1,7 @@
 # --- Provider / target selection --------------------------------------------------
 
 variable "metadata_host" {
-  description = "(Optional) Specifies the Azure metadata host. Set to localhost.localstack.cloud:4566 to target the LocalStack emulator; leave null for real Azure."
+  description = "(Optional) Specifies the Azure metadata host. Set to azure.localhost.localstack.cloud:4566 to target the LocalStack emulator; leave null for real Azure."
   type        = string
   default     = null
 }

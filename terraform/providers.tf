@@ -17,8 +17,9 @@ terraform {
 
 # Dual-target configuration: every identity field defaults to null (Azure CLI auth
 # against real Azure). deploy.sh passes the LocalStack values when targeting the
-# emulator: metadata_host=localhost.localstack.cloud:4566, all-zero GUIDs for
-# subscription/tenant/client, and the placeholder client secret.
+# emulator: metadata_host=azure.localhost.localstack.cloud:4566 (the host of the
+# Azure CLI's Resource Manager endpoint), all-zero GUIDs for subscription/tenant/
+# client, and the placeholder client secret.
 provider "azurerm" {
   features {
     resource_group {

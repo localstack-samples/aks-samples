@@ -120,6 +120,11 @@ A name or an ID read from `az ... --output tsv` then carries an invisible `\r`, 
 `set -o igncr` makes these shells drop carriage returns from `$(...)` and `read`, and `export SHELLOPTS` passes the option on to the scripts you start.
 `mapfile` keeps them even then, so the scripts that fill an array from the Azure CLI strip them with `tr -d '\r'`.
 
+Build the sample images with BuildKit, the builder Docker Desktop uses by default.
+A Windows `docker` CLI without the buildx plugin, for example one that drives a Docker Engine in WSL, falls back to the legacy builder.
+With the containerd image store of Docker Engine 29, that builder does not download a base image layer whose content another image, such as the emulator's, already unpacked, and `04-push-docker-image.sh` then fails with `content digest sha256:...: not found`.
+Install the [buildx plugin](https://github.com/docker/buildx#installing) and build the image again.
+
 Tips:
 
 - To apply these settings in every new Git Bash window, add the three lines to `~/.bash_profile`, or to `~/.bashrc` if your `.bash_profile` sources it.

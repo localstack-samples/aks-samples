@@ -45,7 +45,7 @@ The Terraform configuration uses two providers: [azurerm](https://registry.terra
 
 | Variable | Value |
 | -------- | ----- |
-| `metadata_host` | `localhost.localstack.cloud:4566`, from which azurerm discovers every endpoint |
+| `metadata_host` | The host and port of the Resource Manager endpoint the Azure CLI targets (`azure.localhost.localstack.cloud:4566` with lstk), from which azurerm discovers every endpoint |
 | `resource_manager_endpoint` | `az cloud show --query endpoints.resourceManager`, for AzAPI, which has no metadata discovery |
 | `subscription_id`, `tenant_id`, `client_id`, `client_secret` | The emulator's placeholder credentials |
 | `gateway_api_enabled` | `false`, see [LocalStack emulator notes](#localstack-emulator-notes) |
