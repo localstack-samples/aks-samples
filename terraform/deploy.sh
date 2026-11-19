@@ -26,7 +26,6 @@ SSH_PUBLIC_KEY_FILE="${SSH_PUBLIC_KEY_FILE:-$HOME/.ssh/id_rsa.pub}"
 # The windows_admin_password variable reads it from the environment
 export TF_VAR_windows_admin_password="${WINDOWS_ADMIN_PASSWORD:-Trustno123456!}"
 EMULATOR_GUID="00000000-0000-0000-0000-000000000000"
-EMULATOR_METADATA_HOST="localhost.localstack.cloud:4566"
 CURRENT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Check prerequisites
@@ -44,6 +43,10 @@ cd "$CURRENT_DIR" || exit
 RESOURCE_MANAGER_ENDPOINT=$(az cloud show --query endpoints.resourceManager --output tsv --only-show-errors | tr -d '\r')
 if [[ $RESOURCE_MANAGER_ENDPOINT == *localhost* || $RESOURCE_MANAGER_ENDPOINT == *localstack* ]]; then
 	IS_EMULATOR=1
+	# azurerm discovers every endpoint from the metadata host: the host and port of this endpoint, because the emulator
+	# serves Azure only on its own Azure host (azure.localhost.localstack.cloud:4566 with lstk), not on localhost.localstack.cloud
+	EMULATOR_METADATA_HOST=${RESOURCE_MANAGER_ENDPOINT#*://}
+	EMULATOR_METADATA_HOST=${EMULATOR_METADATA_HOST%%/*}
 	echo "The Azure CLI targets the LocalStack for Azure emulator at [$RESOURCE_MANAGER_ENDPOINT]"
 else
 	IS_EMULATOR=0

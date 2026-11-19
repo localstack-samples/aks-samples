@@ -23,7 +23,6 @@ GATEWAY_API_ENABLED=1
 # the emulator has no global vault-name uniqueness so it keeps the short one.
 REAL_KEY_VAULT_NAME='local-kv-ciao-local'
 EMULATOR_KEY_VAULT_NAME='local-kv-test'
-EMULATOR_METADATA_HOST='localhost.localstack.cloud:4566'
 EMULATOR_GUID='00000000-0000-0000-0000-000000000000'
 AKS_FEATURES=("ManagedGatewayAPIPreview")
 SSH_KEY_FILE="$HOME/.ssh/id_rsa.pub"
@@ -38,6 +37,10 @@ RESOURCE_MANAGER_ENDPOINT=$(az cloud show --query endpoints.resourceManager --ou
 IS_EMULATOR=0
 if [[ "$RESOURCE_MANAGER_ENDPOINT" == *localhost* || "$RESOURCE_MANAGER_ENDPOINT" == *localstack* ]]; then
   IS_EMULATOR=1
+  # azurerm discovers every endpoint from the metadata host: the host and port of this endpoint, because the emulator
+  # serves Azure only on its own Azure host (azure.localhost.localstack.cloud:4566 with lstk), not on localhost.localstack.cloud
+  EMULATOR_METADATA_HOST=${RESOURCE_MANAGER_ENDPOINT#*://}
+  EMULATOR_METADATA_HOST=${EMULATOR_METADATA_HOST%%/*}
   echo "Detected LocalStack Azure emulator at [$RESOURCE_MANAGER_ENDPOINT]"
 else
   echo "Detected real Azure ([$RESOURCE_MANAGER_ENDPOINT])"
