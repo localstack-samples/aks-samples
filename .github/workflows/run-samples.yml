@@ -275,6 +275,26 @@ jobs:
           echo "${YQ_SHA256}  yq.exe" | sha256sum --check
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
+      - name: Install the buildx plugin
+        # Without buildx, the docker CLI of the Windows runner image builds with the legacy builder. With the
+        # containerd image store of Docker Engine 29, that builder skips downloading a base image layer whose
+        # content another image already unpacked, and `docker push` then fails with "content digest ...: not
+        # found": the emulator image holds the Debian layer of python:3.13-slim under another digest. BuildKit,
+        # which Docker Desktop and the Linux runner build with, downloads every layer of the image it stores.
+        # The release and its SHA-256 are pinned.
+        if: matrix.os == 'windows'
+        env:
+          BUILDX_VERSION: v0.38.2
+          BUILDX_SHA256: 9a6aca9c84adda0391d1d98d8b74b49359cad1bcdadd196a0a5d7d5dc4cf15e0
+        run: |
+          plugins="${DOCKER_CONFIG:-$HOME/.docker}/cli-plugins"
+          mkdir -p "$plugins"
+          cd "$plugins"
+          curl --silent --show-error --fail --location --retry 3 --output docker-buildx.exe \
+            "https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.windows-amd64.exe"
+          echo "${BUILDX_SHA256}  docker-buildx.exe" | sha256sum --check
+          docker buildx version
+
       - name: Put psql on the PATH
         # The PostgreSQL and App Configuration samples seed their databases with psql, which comes with the
         # PostgreSQL the Windows runner image installs off the PATH; the Linux runner image has it on the PATH
