@@ -103,10 +103,11 @@ def delete(activity_id: str):
     a position would then delete whatever activity happens to sit there now.
     """
     if activity_id:
-        if db_client.delete_activity(activity_id):
-            logger.info("Activity deleted: %s", activity_id)
-        else:
+        # An activity that is already gone counts as deleted, as in the .NET version: another replica may have
+        # deleted it a moment earlier.
+        if not db_client.delete_activity(activity_id):
             logger.info("No activity %s to delete: already deleted.", activity_id)
+        logger.info("Activity deleted: %s", activity_id)
         flash("Activity deleted.")
     return redirect(url_for("index"))
 

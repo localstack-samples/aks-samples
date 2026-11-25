@@ -5,7 +5,7 @@ import datetime
 from typing import List, Tuple
 from azure.identity import DefaultAzureCredential, ClientSecretCredential
 from azure.storage.blob import BlobServiceClient
-from azure.core.exceptions import ResourceExistsError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from flask import Flask, flash, jsonify, render_template, request, redirect, url_for
 
 # Initialize Flask application
@@ -222,6 +222,10 @@ def delete_blob(name: str) -> bool:
         return True
     except ValueError as ve:
         logger.error(f"Configuration Error: {ve}")
+    except ResourceNotFoundError:
+        # Already gone counts as deleted, as in the .NET version: another replica may have deleted it a moment earlier
+        logger.info(f"Blob '{name}' did not exist: already deleted.")
+        return True
     except Exception as ex:
         logger.error(f"An error occurred while deleting the blob: {ex}")
     return False

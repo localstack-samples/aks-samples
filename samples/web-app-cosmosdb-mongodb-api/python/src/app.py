@@ -119,10 +119,10 @@ def delete(activity_id: str):
     """
     if activity_id:
         # Delete the document from MongoDB
-        if mongodb_client.delete_document_by_id(activity_id):
-            logger.info("Activity deleted: %s", activity_id)
-        else:
+        # An activity that is already gone counts as deleted, as in the .NET version
+        if not mongodb_client.delete_document_by_id(activity_id):
             logger.info("No activity %s to delete: already deleted.", activity_id)
+        logger.info("Activity deleted: %s", activity_id)
         for i, act in enumerate(activities):
             if act[0] == activity_id:
                 activities.pop(i)

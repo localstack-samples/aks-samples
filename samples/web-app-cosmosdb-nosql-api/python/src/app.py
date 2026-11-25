@@ -115,9 +115,9 @@ def delete(activity_id: str):
     # and raising here would answer the user with HTTP 500 for work that is already done.
     try:
         get_cosmos().delete_document_by_id(activity_id, username)
-        logger.info("Activity deleted: %s", activity_id)
     except exceptions.CosmosResourceNotFoundError:
         logger.info("No activity %s to delete: already deleted.", activity_id)
+    logger.info("Activity deleted: %s", activity_id)
 
     flash('Activity deleted.')
 
