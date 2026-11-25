@@ -8,7 +8,7 @@
 #   SUFFIX=contoso01 LOCATION=westeurope ./01-deploy-resources.sh
 PREFIX="${PREFIX:-local}"
 SUFFIX="${SUFFIX:-test}"
-LOCATION="${LOCATION:-italynorth}"
+LOCATION="${LOCATION:-westeurope}"
 RESOURCE_GROUP_NAME="${RESOURCE_GROUP_NAME:-${PREFIX}-rg}"
 AKS_CLUSTER_NAME="${AKS_CLUSTER_NAME:-${PREFIX}-aks-${SUFFIX}}"
 ACR_NAME="${ACR_NAME:-${PREFIX,,}acr${SUFFIX,,}}"

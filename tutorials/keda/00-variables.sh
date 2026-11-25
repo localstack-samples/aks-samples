@@ -3,7 +3,7 @@
 # Each tutorial's scripts/00-variables.sh sources this file with: source ../../00-variables.sh
 #
 # The AKS cluster is created by scripts/01-user-assigned-managed-identity.sh; these values MUST
-# match that script (prefix "local", suffix "test", location "ItalyNorth") so the tutorials target
+# match that script (prefix "local", suffix "test", location "westeurope") so the tutorials target
 # the cluster it creates instead of standing up their own.
 
 # Azure Kubernetes Service (AKS)
@@ -11,7 +11,7 @@ PREFIX="local"
 SUFFIX="test"
 AKS_NAME="${PREFIX}-aks-${SUFFIX}"
 AKS_RESOURCE_GROUP_NAME="${PREFIX}-rg"
-LOCATION="ItalyNorth"
+LOCATION="westeurope"
 
 # Azure Container Registry. The tutorials build their producer and consumer images and push them
 # here, exactly like the samples. The login server differs between targets (real Azure returns

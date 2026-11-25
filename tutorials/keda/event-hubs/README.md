@@ -53,7 +53,7 @@ flowchart LR
 
 ## Prerequisites
 
-- An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [../00-variables.sh](../00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, location `ItalyNorth`) must match the cluster the script creates; edit them if you changed the cluster script's `prefix`, `suffix`, or `location`.
+- An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [../00-variables.sh](../00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, location `westeurope`) must match the cluster the script creates; edit them if you changed the cluster script's `prefix`, `suffix`, or `location`.
 - An Azure Container Registry attached to the cluster. The cluster-creation script creates it and attaches it with `--attach-acr`, which is why the manifests need no image pull secret.
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) (`az`), [kubectl](https://kubernetes.io/docs/tasks/tools/), [yq](https://mikefarah.gitbook.io/yq/) to patch the manifests, and [Docker](https://docs.docker.com/get-docker/) to build the two images.
 
