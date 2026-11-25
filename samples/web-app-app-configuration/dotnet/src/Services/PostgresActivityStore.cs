@@ -95,7 +95,7 @@ public sealed class PostgresActivityStore(PostgresOptions options, ILogger<Postg
         command.Parameters.AddWithValue("id", id);
         if (await command.ExecuteNonQueryAsync(cancellationToken) == 0)
         {
-            logger.LogInformation("Activity '{Id}' did not exist: already deleted.", id);
+            logger.LogInformation("No activity '{Id}' to delete: already deleted.", id);
         }
 
         return true;

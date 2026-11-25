@@ -68,7 +68,7 @@ public sealed class SqlActivityStore(SqlOptions options, ILogger<SqlActivityStor
         command.Parameters.AddWithValue("@username", options.Username);
         command.Parameters.AddWithValue("@activity", text);
         var id = await command.ExecuteScalarAsync(cancellationToken);
-        logger.LogInformation("Activity created: {Id}", id);
+        logger.LogInformation("Inserted activity with ID: {Id}", id);
         return id is not null;
     }
 

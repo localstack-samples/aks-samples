@@ -67,7 +67,7 @@ def read_documents(username: str):
         return docs
     except Exception as e:
         logger.error(f"Cosmos read failed: {e}")
-        return []
+        return None
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -81,21 +81,24 @@ def index():
 
         if activity:
             if row_id:
-                get_cosmos().update_document_by_id(
+                if get_cosmos().update_document_by_id(
                     doc_id=row_id,
                     username=username,
                     updates={"activity": activity}
-                )
+                ):
+                    logger.info("Activity updated: %s (id %s)", activity, row_id)
                 flash('Activity updated.')
             else:
                 doc = create_document(activity)
                 get_cosmos().insert_document(doc)
                 get_activities().add((doc["id"], activity))
+                logger.info("Activity added: %s", activity)
                 flash('Activity added.')
 
         return redirect(url_for('index'))
     
-    read_documents(username)
+    if read_documents(username) is not None:
+        logger.info("Activity retrieved: %d activities", len(get_activities()))
     
     return render_template(
         'index.html',
@@ -107,15 +110,14 @@ def index():
 
 @app.route('/delete/<string:activity_id>', methods=['POST'])
 def delete(activity_id: str):
-    logger.info(f"Deleting activity with ID: {activity_id}")
-
     # Direct deletion using the ID passed in the URL. An activity that is already gone counts as deleted:
     # every replica serves the same container, so another replica may have deleted it a moment earlier,
     # and raising here would answer the user with HTTP 500 for work that is already done.
     try:
         get_cosmos().delete_document_by_id(activity_id, username)
+        logger.info("Activity deleted: %s", activity_id)
     except exceptions.CosmosResourceNotFoundError:
-        logger.warning(f"Activity {activity_id} was not found; nothing to delete")
+        logger.info("No activity %s to delete: already deleted.", activity_id)
 
     flash('Activity deleted.')
 

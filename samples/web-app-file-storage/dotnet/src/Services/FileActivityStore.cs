@@ -83,7 +83,7 @@ public sealed class FileActivityStore(FileStorageOptions options, ILogger<FileAc
                     return Task.FromResult(false);
                 }
 
-                logger.LogInformation("Activity file '{Name}' does not exist in directory '{Directory}': already deleted.", id, _directory);
+                logger.LogInformation("No activity file '{Name}' in directory '{Directory}': already deleted.", id, _directory);
                 return Task.FromResult(true);
             }
 

@@ -105,7 +105,7 @@ public sealed class CosmosActivityStore : IActivityStore
         {
             // Already gone counts as deleted: every replica serves the same container, so another replica
             // may have deleted the item a moment earlier, and the user should see it disappear either way.
-            _logger.LogInformation("Activity {Id} was not found: already deleted.", id);
+            _logger.LogInformation("No activity {Id} to delete: already deleted.", id);
             return true;
         }
     }

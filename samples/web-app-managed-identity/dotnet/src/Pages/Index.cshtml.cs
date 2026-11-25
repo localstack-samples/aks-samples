@@ -21,6 +21,7 @@ public class IndexModel(IActivityStore store, ILogger<IndexModel> logger) : Page
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Activities = await store.ListAsync(cancellationToken);
+        logger.LogInformation("Activity retrieved: {Count} activities", Activities.Count);
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
@@ -33,7 +34,7 @@ public class IndexModel(IActivityStore store, ILogger<IndexModel> logger) : Page
             {
                 if (await store.UpdateAsync(id, text, cancellationToken))
                 {
-                    logger.LogInformation("Activity updated: {Id}", id);
+                    logger.LogInformation("Activity updated: {Activity} (id {Id})", text, id);
                     TempData["Flash"] = "Activity updated successfully.";
                 }
             }
