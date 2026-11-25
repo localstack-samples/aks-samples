@@ -3,6 +3,54 @@
 # Variables
 source ./00-variables.sh
 
+# Assign a role to a principal on a scope, unless it already has it. Azure needs a moment to propagate a
+# freshly created principal, so the create is retried.
+# $1: the principal (object) id  $2: the principal type  $3: the role  $4: the scope
+# $5: a description of the principal  $6: a description of the scope
+ensure_role_assignment() {
+	local principal_id=$1
+	local principal_type=$2
+	local role=$3
+	local scope=$4
+	local principal_description=$5
+	local scope_description=$6
+	local current attempt
+
+	echo "Checking if the $principal_description has the [$role] role assignment on the $scope_description..."
+	current=$(az role assignment list \
+		--assignee "$principal_id" \
+		--scope "$scope" \
+		--query "[?roleDefinitionName=='$role'].roleDefinitionName" \
+		--output tsv \
+		--only-show-errors 2>/dev/null)
+
+	if [[ $current == "$role" ]]; then
+		echo "The $principal_description already has the [$role] role assignment on the $scope_description"
+		return 0
+	fi
+
+	echo "Assigning the [$role] role to the $principal_description on the $scope_description..."
+	for attempt in $(seq 1 "$ROLE_ASSIGNMENT_RETRY_COUNT"); do
+		if az role assignment create \
+			--assignee-object-id "$principal_id" \
+			--assignee-principal-type "$principal_type" \
+			--role "$role" \
+			--scope "$scope" \
+			--only-show-errors 1>/dev/null; then
+			echo "[$role] role successfully assigned to the $principal_description on the $scope_description"
+			return 0
+		fi
+
+		if [ "$attempt" -lt "$ROLE_ASSIGNMENT_RETRY_COUNT" ]; then
+			echo "Attempt $attempt of $ROLE_ASSIGNMENT_RETRY_COUNT to assign the [$role] role failed; retrying in $ROLE_ASSIGNMENT_RETRY_SLEEP seconds..."
+			sleep "$ROLE_ASSIGNMENT_RETRY_SLEEP"
+		fi
+	done
+
+	echo "Failed to assign the [$role] role to the $principal_description on the $scope_description"
+	exit 1
+}
+
 # Retrieve the resource id of the Key Vault resource
 echo "Retrieving the resource id for the [$KEY_VAULT_NAME] key vault..."
 KEY_VAULT_ID=$(az keyvault show \
@@ -52,48 +100,6 @@ fi
 # Get the name of the Azure Key Vault Secrets Provider identity from the resourceId
 KV_IDENTITY_NAME=$(basename $KV_IDENTITY_RESOURCE_ID)
 
-# Assign the Key Vault Administrator role to the managed identity on the node resource group
-ROLE="Key Vault Administrator"
-MANAGED_IDENTITY_NAME="$KV_IDENTITY_NAME"
-PRINCIPAL_ID="$KV_IDENTITY_OBJECT_ID"
-SCOPE_ID="$KEY_VAULT_ID"
-SCOPE_NAME="$KEY_VAULT_NAME"
-SCOPE_TYPE="key vault"
-echo "Checking if the [$MANAGED_IDENTITY_NAME] managed identity has the [$ROLE] role assignment on the [$SCOPE_NAME] $SCOPE_TYPE..."
-current=$(az role assignment list \
-	--assignee "$PRINCIPAL_ID" \
-	--scope "$SCOPE_ID" \
-	--query "[?roleDefinitionName=='$ROLE'].roleDefinitionName" \
-	--output tsv 2>/dev/null)
-
-if [[ $current == "$ROLE" ]]; then
-	echo "Managed identity [$MANAGED_IDENTITY_NAME] already has the [$ROLE] role assignment on the [$SCOPE_NAME] $SCOPE_TYPE"
-else
-	echo "Managed identity [$MANAGED_IDENTITY_NAME] does not have the [$ROLE] role assignment on the [$SCOPE_NAME] $SCOPE_TYPE"
-	echo "Creating role assignment: assigning [$ROLE] role to managed identity [$MANAGED_IDENTITY_NAME] on the [$SCOPE_NAME] $SCOPE_TYPE..."
-	ATTEMPT=1
-	while [ $ATTEMPT -le $RETRY_COUNT ]; do
-		echo "Attempt $ATTEMPT of $RETRY_COUNT to assign role..."
-		az role assignment create \
-			--assignee "$PRINCIPAL_ID" \
-			--role "$ROLE" \
-			--scope "$SCOPE_ID" 1>/dev/null
-
-		if [[ $? == 0 ]]; then
-			break
-		else
-			if [ $ATTEMPT -lt $RETRY_COUNT ]; then
-				echo "Role assignment failed. Waiting [$SLEEP] seconds before retry..."
-				sleep $SLEEP
-			fi
-			ATTEMPT=$((ATTEMPT + 1))
-		fi
-	done
-
-	if [[ $? == 0 ]]; then
-		echo "Successfully assigned [$ROLE] role to managed identity [$MANAGED_IDENTITY_NAME] on the [$SCOPE_NAME] $SCOPE_TYPE"
-	else
-		echo "Failed to assign [$ROLE] role to managed identity [$MANAGED_IDENTITY_NAME] on the [$SCOPE_NAME] $SCOPE_TYPE"
-		exit 1
-	fi
-fi
+# Assign the Key Vault Administrator role to the Azure Key Vault Secrets Provider identity on the key vault
+ensure_role_assignment "$KV_IDENTITY_OBJECT_ID" "ServicePrincipal" "Key Vault Administrator" \
+	"$KEY_VAULT_ID" "[$KV_IDENTITY_NAME] managed identity" "[$KEY_VAULT_NAME] key vault"

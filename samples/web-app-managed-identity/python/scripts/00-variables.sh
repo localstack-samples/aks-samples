@@ -28,6 +28,10 @@ ACME_EMAIL="${ACME_EMAIL:-admin@example.com}"
 STORAGE_ACCOUNT_NAME="${PREFIX}storage${SUFFIX}"
 CONTAINER_NAME='activities'
 
+# Role assignments: a new managed identity takes a moment to reach Azure RBAC, so the create is retried
+ROLE_ASSIGNMENT_RETRY_COUNT=5
+ROLE_ASSIGNMENT_RETRY_SLEEP=3
+
 # Docker Image
 IMAGE_NAME="vacation-planner-identity"
 IMAGE_PULL_POLICY="Always"

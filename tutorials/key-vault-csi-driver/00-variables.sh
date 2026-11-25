@@ -23,3 +23,5 @@ ENVIRONMENT_NAME=$(az account show --query environmentName --output tsv --only-s
 # Others
 RETRY_COUNT=5
 SLEEP=3
+ROLE_ASSIGNMENT_RETRY_COUNT=5
+ROLE_ASSIGNMENT_RETRY_SLEEP=3
