@@ -73,7 +73,7 @@ The `keda-operator` service account exists once, in `kube-system`, and the annot
 ## Prerequisites
 
 - An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). Those scripts already pass `--enable-keda`, `--enable-oidc-issuer` and `--enable-workload-identity`, and they create the `localacrtest` container registry attached to the cluster, which is where these tutorials push their images.
-- The values in [00-variables.sh](00-variables.sh) must match the cluster those scripts create (cluster `local-aks-test`, resource group `local-rg`, registry `localacrtest`, location `ItalyNorth`); edit them if you changed their `prefix`, `suffix` or `location`.
+- The values in [00-variables.sh](00-variables.sh) must match the cluster those scripts create (cluster `local-aks-test`, resource group `local-rg`, registry `localacrtest`, location `westeurope`); edit them if you changed their `prefix`, `suffix` or `location`.
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), [kubectl](https://kubernetes.io/docs/tasks/tools/), [Docker](https://docs.docker.com/get-docker/) and [yq](https://github.com/mikefarah/yq).
 
 Each tutorial's own README lists its scripts in order and explains what to expect from each one. Every script is idempotent, so a script can be re-run safely, and each tutorial ends with an assertion script that proves the scale-out and the scale-in actually happened instead of just printing state.

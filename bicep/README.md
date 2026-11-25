@@ -66,7 +66,7 @@ param windowsAdminPassword = readEnvironmentVariable('WINDOWS_ADMIN_PASSWORD')
 | -------------------- | --------- | ------- | --------------- |
 | `PREFIX` | `prefix` | `local` | `prefix` |
 | `SUFFIX` | `suffix` | `test` | `suffix` |
-| `LOCATION` | `location` | `italynorth` | `location` |
+| `LOCATION` | `location` | `westeurope` | `location` |
 | `IDENTITY_TYPE` | `identityType` | `SystemAssigned` | The choice of script |
 | `NETWORK_OPTION` | `networkOption` | `1` | The network plugin and policy menu: `1` Azure CNI Overlay with the Azure network policy, `2` with the Cilium dataplane and network policy, `3` with the Calico network policy |
 | `SYSTEM_NODE_COUNT` | `systemNodeCount` | `1` | `node_count`, asked by the scripts |

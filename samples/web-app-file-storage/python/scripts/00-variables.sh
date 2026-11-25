@@ -13,7 +13,7 @@ uppercase() {
 # Azure Resources
 PREFIX='local'
 SUFFIX='test'
-LOCATION='italynorth'
+LOCATION='westeurope'
 RESOURCE_GROUP_NAME="${PREFIX}-rg"
 ACR_NAME="$(lowercase "$PREFIX")acr$(lowercase "$SUFFIX")"
 ACR_SKU='Standard'

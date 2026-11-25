@@ -13,7 +13,7 @@ variable "suffix" {
 variable "location" {
   description = "Specifies the location of every resource."
   type        = string
-  default     = "italynorth"
+  default     = "westeurope"
 }
 
 variable "identity_type" {

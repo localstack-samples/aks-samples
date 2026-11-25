@@ -13,7 +13,7 @@
 # subscription normally needs its own SUFFIX (or PREFIX).
 PREFIX="${PREFIX:-local}"
 SUFFIX="${SUFFIX:-test}"
-LOCATION="${LOCATION:-italynorth}"
+LOCATION="${LOCATION:-westeurope}"
 RESOURCE_GROUP_NAME="${PREFIX}-rg"
 AKS_CLUSTER_NAME="${PREFIX}-aks-${SUFFIX}"
 IDENTITY_TYPE="${IDENTITY_TYPE:-SystemAssigned}"

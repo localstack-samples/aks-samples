@@ -3,7 +3,7 @@
 # Source this file from every script with: source ./00-variables.sh
 #
 # The AKS cluster is created by scripts/01-user-assigned-managed-identity.sh; these values MUST match that script
-# (prefix "local", suffix "test", location "ItalyNorth") so the tutorial adds its GPU node pool to the cluster it
+# (prefix "local", suffix "test", location "westeurope") so the tutorial adds its GPU node pool to the cluster it
 # creates instead of standing up its own.
 
 # Azure Kubernetes Service (AKS)
@@ -11,12 +11,12 @@ PREFIX="local"
 SUFFIX="test"
 AKS_NAME="${PREFIX}-aks-${SUFFIX}"
 AKS_RESOURCE_GROUP_NAME="${PREFIX}-rg"
-LOCATION="ItalyNorth"
+LOCATION="westeurope"
 
 # The Spot GPU node pool. Standard_NV18ads_A10_v5 runs half an NVIDIA A10 GPU, which Kubernetes sees as one
 # nvidia.com/gpu, with 18 vCPUs. Spot VMs count against the region's Spot vCPU quota (lowPriorityCores) whatever their
 # VM family, and Azure starts one only when it has Spot capacity. Check the quota with:
-#   az vm list-usage --location italynorth --query "[?name.value=='lowPriorityCores']" --output table
+#   az vm list-usage --location westeurope --query "[?name.value=='lowPriorityCores']" --output table
 # The pool starts with no node: the cluster autoscaler adds one when a pod asks for a GPU, and deallocates it when it
 # is idle instead of deleting it (scale-down mode Deallocate). A deallocated node keeps its OS disk, and with it the
 # images its pods pulled, and the autoscaler starts it again, before it adds any new node, when a pod asks for a GPU

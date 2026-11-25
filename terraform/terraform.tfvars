@@ -1,7 +1,7 @@
 # The defaults of the cluster scripts. deploy.sh overrides each of them from its environment variables.
 prefix            = "local"
 suffix            = "test"
-location          = "italynorth"
+location          = "westeurope"
 identity_type     = "SystemAssigned"
 network_option    = 1
 system_node_count = 1

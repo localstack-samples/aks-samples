@@ -3,7 +3,7 @@
 # Source this file from every test script with: source ./00-variables.sh
 #
 # The AKS cluster is created by scripts/01-user-assigned-managed-identity.sh;
-# these values MUST match that script (prefix "local", suffix "test", location "ItalyNorth") so the
+# these values MUST match that script (prefix "local", suffix "test", location "westeurope") so the
 # tests target the cluster it creates instead of standing up their own.
 
 # Azure Kubernetes Service (AKS)
@@ -11,7 +11,7 @@ PREFIX="local"
 SUFFIX="test"
 AKS_NAME="${PREFIX}-aks-${SUFFIX}"
 AKS_RESOURCE_GROUP_NAME="${PREFIX}-rg"
-LOCATION="ItalyNorth"
+LOCATION="westeurope"
 
 # The Kubernetes Gateway API resource group suffix carried by every CRD the Managed Gateway API
 # installation manages (az aks update --enable-gateway-api installs the standard-channel bundle).

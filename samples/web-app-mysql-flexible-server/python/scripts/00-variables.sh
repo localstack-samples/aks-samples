@@ -3,7 +3,7 @@
 # Azure Resources
 PREFIX='local'
 SUFFIX='test'
-LOCATION='italynorth'
+LOCATION='westeurope'
 RESOURCE_GROUP_NAME="${PREFIX}-rg"
 ACR_NAME="${PREFIX,,}acr${SUFFIX,,}"
 ACR_SKU='Standard'

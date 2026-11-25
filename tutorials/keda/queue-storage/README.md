@@ -54,7 +54,7 @@ flowchart LR
 
 ## Prerequisites
 
-- An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [../00-variables.sh](../00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, location `ItalyNorth`) must match the cluster the script creates; edit them if you changed the cluster script's `prefix`, `suffix`, or `location`. The cluster must have the OIDC issuer and the workload identity webhook enabled, which those scripts do.
+- An AKS cluster reachable through `kubectl`, created with [scripts/01-user-assigned-managed-identity.sh](../../../scripts/01-user-assigned-managed-identity.sh) (or the system-assigned variant). The values in [../00-variables.sh](../00-variables.sh) (cluster `local-aks-test`, resource group `local-rg`, location `westeurope`) must match the cluster the script creates; edit them if you changed the cluster script's `prefix`, `suffix`, or `location`. The cluster must have the OIDC issuer and the workload identity webhook enabled, which those scripts do.
 - An Azure Container Registry attached to the cluster (`--attach-acr`), also created by the cluster-creation scripts, so the nodes can pull the producer and consumer images without an image pull secret.
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) (`az`), signed in to the target subscription with `az login`.
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) and [yq](https://github.com/mikefarah/yq) (the manifests in `scripts/` are patched with `yq` before they are applied).
