@@ -267,19 +267,23 @@ def index():
                     return redirect(url_for('index'))
                 if update_blob(row_id, activity):
                     logger.info("Activity updated: %s (id %s)", activity, row_id)
-                for i, act in enumerate(activities):
-                    if act[0] == row_id:
-                        activities[i] = (row_id, activity)
-                        break
-                flash('Activity updated successfully.')
+                    for i, act in enumerate(activities):
+                        if act[0] == row_id:
+                            activities[i] = (row_id, activity)
+                            break
+                    flash('Activity updated successfully.')
+                else:
+                    flash('Failed to update the activity in the blob container.')
             else:
                 # Generate a unique blob name with a timestamp
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
                 name = f"{timestamp}{ACTIVITY_BLOB_SUFFIX}"
                 if create_blob_if_not_exists(name, activity):
                     logger.info("Activity added: %s", activity)
-                activities.append((name, activity))
-                flash('Activity added successfully.')
+                    activities.append((name, activity))
+                    flash('Activity added successfully.')
+                else:
+                    flash('Failed to add the activity to the blob container.')
         return redirect(url_for('index'))
 
     # Always reload activities from blob storage on GET
@@ -302,11 +306,13 @@ def delete(activity_id: str):
 
     if delete_blob(activity_id):
         logger.info("Activity deleted: %s", activity_id)
-    for i, act in enumerate(activities):
-        if act[0] == activity_id:
-            activities.pop(i)
-            break
-    flash('Activity deleted successfully.')
+        for i, act in enumerate(activities):
+            if act[0] == activity_id:
+                activities.pop(i)
+                break
+        flash('Activity deleted successfully.')
+    else:
+        flash('Failed to delete the activity from the blob container.')
     return redirect(url_for('index'))
 
 @app.route('/health')
