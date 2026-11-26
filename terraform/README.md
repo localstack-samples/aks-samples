@@ -4,9 +4,11 @@ This directory contains Terraform modules and a deployment script that create th
 
 ## Architecture
 
+The following architecture is deployed by [scripts/01-user-assigned-managed-identity.sh](../scripts/01-user-assigned-managed-identity.sh) and, with a user-assigned identity, by the [Bicep](../bicep/) deployment and this Terraform deployment.
+
 ![Architecture of the AKS cluster](../images/aks-cluster-architecture.png)
 
-The diagram shows the cluster with a user-assigned identity. With a system-assigned identity, the default, Azure creates the cluster identity (item 6) together with the cluster. The architecture is composed of the following Azure resources:
+With a system-assigned identity, the default, Azure creates the cluster identity (item 6) together with the cluster. The architecture is composed of the following Azure resources:
 
 1. [Azure Resource Group](https://learn.microsoft.com/azure/azure-resource-manager/management/manage-resource-groups-cli) `<prefix>-rg`: A logical container scoping the resources below. AKS creates a second one for the cluster's infrastructure, the node resource group (item 10).
 2. [Azure Key Vault](https://learn.microsoft.com/azure/key-vault/general/overview) `<prefix>-kv-<suffix>` with the [Azure RBAC permission model](https://learn.microsoft.com/azure/key-vault/general/rbac-guide): A vault whose secrets pods can mount as files through the [Azure Key Vault Secrets Provider](https://learn.microsoft.com/azure/aks/csi-secrets-store-driver) add-on. The add-on's identity (item 10) holds [Key Vault Administrator](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/security#key-vault-administrator) on it. No sample needs it: [tutorials/key-vault-csi-driver](../tutorials/key-vault-csi-driver/) creates its own vault.

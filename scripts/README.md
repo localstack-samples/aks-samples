@@ -2,11 +2,34 @@
 
 The scripts in this folder create the Azure Kubernetes Service (AKS) cluster that the [samples](../samples/) and [tutorials](../tutorials/) run on, and install optional add-ons into it. They work the same way against Azure and against the LocalStack for Azure emulator: see [Run against LocalStack](../README.md#run-against-localstack).
 
+## Cluster Scripts
+
+Every cluster script creates the `local-aks-test` cluster in the `local-rg` resource group, together with the `localacrtest` container registry that every sample pushes its image to, attached to the cluster with `--attach-acr`. The scripts are idempotent: an existing resource is kept, so a script can be re-run after a failure.
+
+| Script | Description | Features |
+| ------ | ----------- | -------- |
+| [01-basic-cluster.sh](01-basic-cluster.sh) | No questions: the smallest and fastest cluster to provision, for demos. To save time it turns off the Azure Files and Azure Disk CSI drivers and the CSI snapshot controller, so it runs every sample except [web-app-file-storage](../samples/web-app-file-storage/) and [web-app-in-cluster-postgresql](../samples/web-app-in-cluster-postgresql/). | System-assigned identity, Azure CNI Overlay with the Azure network policy, one node with the cluster autoscaler (1 to 3 nodes), Microsoft Entra Workload ID, Entra ID authentication with Azure RBAC (admin groups from `AAD_ADMIN_GROUP_OBJECT_IDS`), Advanced Container Networking Services (ACNS), container registry. Azure Files and Azure Disk CSI drivers and CSI snapshot controller off. |
+| [01-configurable-cluster.sh](01-configurable-cluster.sh) | Asks which optional features to provision. Every question has a default and an environment variable, so the script also runs unattended. Pressing Enter at every question provisions the same features as the two scripts below. | Each feature of the scripts below can be turned off, plus the choice of cluster identity and network policy. Optionally installs NGINX Gateway Fabric and cert-manager. |
+| [01-system-assigned-managed-identity.sh](01-system-assigned-managed-identity.sh) | The full, production-like cluster, with a system-assigned identity. The samples' CI uses it. | Custom virtual network with Azure Bastion, Key Vault with the CSI secrets provider, Container Insights, [diagnostic settings](#monitoring) on every resource, a user node pool across availability zones, cluster autoscaler, Workload ID, KEDA, managed Gateway API CRDs, Entra ID with Azure RBAC, ACNS, container registry. |
+| [01-user-assigned-managed-identity.sh](01-user-assigned-managed-identity.sh) | The same full cluster with a pre-created user-assigned identity, which also gets the Contributor role on the node resource group. | As above, with a user-assigned identity. |
+
+What the samples and tutorials need from the cluster:
+
+- Workload ID: [web-app-managed-identity](../samples/web-app-managed-identity/), [web-app-app-configuration](../samples/web-app-app-configuration/), the KEDA tutorials under [tutorials/keda](../tutorials/keda/) and [tutorials/key-vault-csi-driver/workload-identity](../tutorials/key-vault-csi-driver/workload-identity/). The samples create their own workload identities and federated credentials when they are deployed.
+- The Azure Files CSI driver: [web-app-file-storage](../samples/web-app-file-storage/), which mounts its file share through it.
+- The Azure Disk CSI driver: [web-app-in-cluster-postgresql](../samples/web-app-in-cluster-postgresql/), whose database volume uses the `managed-csi-premium` storage class.
+- The custom virtual network: [web-app-file-storage](../samples/web-app-file-storage/) in NFS mode only. Over SMB it works on any cluster with the Azure Files CSI driver.
+- The Key Vault and the CSI secrets provider: nothing needs them from a cluster script. [tutorials/key-vault-csi-driver](../tutorials/key-vault-csi-driver/) creates its own vault and enables the add-on when they are missing.
+- The Cilium network policy option (option 2 of the configurable script): the tutorials under [tutorials/policies/cilium](../tutorials/policies/cilium/). ACNS is always on, so they get Hubble and FQDN policies.
+- NGINX Gateway Fabric, cert-manager and a public DNS zone: [web-app-managed-identity](../samples/web-app-managed-identity/) when it is deployed with `DEPLOY_GATEWAY=true`.
+
 ## Architecture
+
+The following architecture is deployed by [01-user-assigned-managed-identity.sh](01-user-assigned-managed-identity.sh) and, with a user-assigned identity, by the [Bicep](../bicep/) and [Terraform](../terraform/) deployments.
 
 ![Architecture of the AKS cluster](../images/aks-cluster-architecture.png)
 
-The diagram shows the full cluster as [01-user-assigned-managed-identity.sh](01-user-assigned-managed-identity.sh) deploys it. The [Bicep](../bicep/) and [Terraform](../terraform/) deployments create the same resources. With a system-assigned identity, Azure creates the cluster identity (item 6) together with the cluster. The architecture is composed of the following Azure resources:
+With a system-assigned identity, Azure creates the cluster identity (item 6) together with the cluster. The architecture is composed of the following Azure resources:
 
 1. [Azure Resource Group](https://learn.microsoft.com/azure/azure-resource-manager/management/manage-resource-groups-cli) `<prefix>-rg`: A logical container scoping the resources below. AKS creates a second one for the cluster's infrastructure, the node resource group (item 10).
 2. [Azure Key Vault](https://learn.microsoft.com/azure/key-vault/general/overview) `<prefix>-kv-<suffix>` with the [Azure RBAC permission model](https://learn.microsoft.com/azure/key-vault/general/rbac-guide): A vault whose secrets pods can mount as files through the [Azure Key Vault Secrets Provider](https://learn.microsoft.com/azure/aks/csi-secrets-store-driver) add-on. The add-on's identity (item 10) holds [Key Vault Administrator](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/security#key-vault-administrator) on it. No sample needs it: [tutorials/key-vault-csi-driver](../tutorials/key-vault-csi-driver/) creates its own vault.
@@ -30,27 +53,6 @@ The diagram shows the full cluster as [01-user-assigned-managed-identity.sh](01-
 11. [Data collection rule](https://learn.microsoft.com/azure/azure-monitor/essentials/data-collection-rule-overview) `MSCI-<location>-<prefix>-aks-<suffix>`, in the resource group, with its association to the cluster: Tells the Container Insights agent on the nodes what to collect, and sends the data to the workspace (item 3). The monitoring add-on creates it for the scripts; the Bicep and Terraform templates define it themselves.
 
 Every deployment ends with `az aks get-credentials`, which merges the cluster into your kubeconfig. Each sample then pushes its image to the registry and deploys into its own namespace: the nodes pull the image through the kubelet identity, the samples that use Workload ID reach Azure services without secrets, and the logs of every pod land in the `ContainerLogV2` table of the workspace, where the KQL queries in the sample READMEs read them.
-
-## Cluster scripts
-
-Every cluster script creates the `local-aks-test` cluster in the `local-rg` resource group, together with the `localacrtest` container registry that every sample pushes its image to, attached to the cluster with `--attach-acr`. The scripts are idempotent: an existing resource is kept, so a script can be re-run after a failure.
-
-| Script | Description | Features |
-| ------ | ----------- | -------- |
-| [01-basic-cluster.sh](01-basic-cluster.sh) | No questions: the smallest and fastest cluster to provision, for demos. To save time it turns off the Azure Files and Azure Disk CSI drivers and the CSI snapshot controller, so it runs every sample except [web-app-file-storage](../samples/web-app-file-storage/) and [web-app-in-cluster-postgresql](../samples/web-app-in-cluster-postgresql/). | System-assigned identity, Azure CNI Overlay with the Azure network policy, one node with the cluster autoscaler (1 to 3 nodes), Microsoft Entra Workload ID, Entra ID authentication with Azure RBAC (admin groups from `AAD_ADMIN_GROUP_OBJECT_IDS`), Advanced Container Networking Services (ACNS), container registry. Azure Files and Azure Disk CSI drivers and CSI snapshot controller off. |
-| [01-configurable-cluster.sh](01-configurable-cluster.sh) | Asks which optional features to provision. Every question has a default and an environment variable, so the script also runs unattended. Pressing Enter at every question provisions the same features as the two scripts below. | Each feature of the scripts below can be turned off, plus the choice of cluster identity and network policy. Optionally installs NGINX Gateway Fabric and cert-manager. |
-| [01-system-assigned-managed-identity.sh](01-system-assigned-managed-identity.sh) | The full, production-like cluster, with a system-assigned identity. The samples' CI uses it. | Custom virtual network with Azure Bastion, Key Vault with the CSI secrets provider, Container Insights, [diagnostic settings](#monitoring) on every resource, a user node pool across availability zones, cluster autoscaler, Workload ID, KEDA, managed Gateway API CRDs, Entra ID with Azure RBAC, ACNS, container registry. |
-| [01-user-assigned-managed-identity.sh](01-user-assigned-managed-identity.sh) | The same full cluster with a pre-created user-assigned identity, which also gets the Contributor role on the node resource group. | As above, with a user-assigned identity. |
-
-What the samples and tutorials need from the cluster:
-
-- Workload ID: [web-app-managed-identity](../samples/web-app-managed-identity/), [web-app-app-configuration](../samples/web-app-app-configuration/), the KEDA tutorials under [tutorials/keda](../tutorials/keda/) and [tutorials/key-vault-csi-driver/workload-identity](../tutorials/key-vault-csi-driver/workload-identity/). The samples create their own workload identities and federated credentials when they are deployed.
-- The Azure Files CSI driver: [web-app-file-storage](../samples/web-app-file-storage/), which mounts its file share through it.
-- The Azure Disk CSI driver: [web-app-in-cluster-postgresql](../samples/web-app-in-cluster-postgresql/), whose database volume uses the `managed-csi-premium` storage class.
-- The custom virtual network: [web-app-file-storage](../samples/web-app-file-storage/) in NFS mode only. Over SMB it works on any cluster with the Azure Files CSI driver.
-- The Key Vault and the CSI secrets provider: nothing needs them from a cluster script. [tutorials/key-vault-csi-driver](../tutorials/key-vault-csi-driver/) creates its own vault and enables the add-on when they are missing.
-- The Cilium network policy option (option 2 of the configurable script): the tutorials under [tutorials/policies/cilium](../tutorials/policies/cilium/). ACNS is always on, so they get Hubble and FQDN policies.
-- NGINX Gateway Fabric, cert-manager and a public DNS zone: [web-app-managed-identity](../samples/web-app-managed-identity/) when it is deployed with `DEPLOY_GATEWAY=true`.
 
 ## Configurable script
 
