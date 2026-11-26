@@ -31,6 +31,54 @@ native_path() {
   fi
 }
 
+# Assign a role to a principal on a scope, unless it already has it. Azure needs a moment to propagate a
+# freshly created principal, so the create is retried.
+# $1: the principal (object) id  $2: the principal type  $3: the role  $4: the scope
+# $5: a description of the principal  $6: a description of the scope
+ensure_role_assignment() {
+	local principal_id=$1
+	local principal_type=$2
+	local role=$3
+	local scope=$4
+	local principal_description=$5
+	local scope_description=$6
+	local current attempt
+
+	echo "Checking if the $principal_description has the [$role] role assignment on the $scope_description..."
+	current=$(az role assignment list \
+		--assignee "$principal_id" \
+		--scope "$scope" \
+		--query "[?roleDefinitionName=='$role'].roleDefinitionName" \
+		--output tsv \
+		--only-show-errors 2>/dev/null)
+
+	if [[ $current == "$role" ]]; then
+		echo "The $principal_description already has the [$role] role assignment on the $scope_description"
+		return 0
+	fi
+
+	echo "Assigning the [$role] role to the $principal_description on the $scope_description..."
+	for attempt in $(seq 1 "$ROLE_ASSIGNMENT_RETRY_COUNT"); do
+		if az role assignment create \
+			--assignee-object-id "$principal_id" \
+			--assignee-principal-type "$principal_type" \
+			--role "$role" \
+			--scope "$scope" \
+			--only-show-errors 1>/dev/null; then
+			echo "[$role] role successfully assigned to the $principal_description on the $scope_description"
+			return 0
+		fi
+
+		if [ "$attempt" -lt "$ROLE_ASSIGNMENT_RETRY_COUNT" ]; then
+			echo "Attempt $attempt of $ROLE_ASSIGNMENT_RETRY_COUNT to assign the [$role] role failed; retrying in $ROLE_ASSIGNMENT_RETRY_SLEEP seconds..."
+			sleep "$ROLE_ASSIGNMENT_RETRY_SLEEP"
+		fi
+	done
+
+	echo "Failed to assign the [$role] role to the $principal_description on the $scope_description"
+	exit 1
+}
+
 # Variables
 
 # Azure Kubernetes Service (AKS) cluster
@@ -106,8 +154,8 @@ node_pool_max_pods=100
 subscription_name=$(az account show --query name --output tsv)
 
 # Role assignment retry settings
-RETRY_COUNT=3
-SLEEP=5
+ROLE_ASSIGNMENT_RETRY_COUNT=3
+ROLE_ASSIGNMENT_RETRY_SLEEP=5
 
 # Extensions to register
 install_extensions_and_features=0
@@ -795,49 +843,8 @@ else
 fi
 
 # Assign the Network Contributor role to the cluster identity on the virtual network
-role="Network Contributor"
-managed_identity_name="$aks_cluster_name"
-principal_id="$cluster_identity_principal_id"
-scope_id="$virtual_network_id"
-scope_name="$virtual_network_name"
-echo "Checking if the [$managed_identity_name] cluster identity has the [$role] role assignment on the [$scope_name] virtual network..."
-current=$(az role assignment list \
-  --assignee "$principal_id" \
-  --scope "$scope_id" \
-  --query "[?roleDefinitionName=='$role'].roleDefinitionName" \
-  --output tsv 2>/dev/null)
-
-if [[ $current == "$role" ]]; then
-  echo "Cluster identity [$managed_identity_name] already has the [$role] role assignment on the [$scope_name] virtual network"
-else
-  echo "Cluster identity [$managed_identity_name] does not have the [$role] role assignment on the [$scope_name] virtual network"
-  echo "Creating role assignment: assigning [$role] role to cluster identity [$managed_identity_name] on the [$scope_name] virtual network..."
-  ATTEMPT=1
-  while [ $ATTEMPT -le $RETRY_COUNT ]; do
-    echo "Attempt $ATTEMPT of $RETRY_COUNT to assign role..."
-    az role assignment create \
-      --assignee "$principal_id" \
-      --role "$role" \
-      --scope "$scope_id" 1>/dev/null
-
-    if [[ $? == 0 ]]; then
-      break
-    else
-      if [ $ATTEMPT -lt $RETRY_COUNT ]; then
-        echo "Role assignment failed. Waiting [$SLEEP] seconds before retry..."
-        sleep $SLEEP
-      fi
-      ATTEMPT=$((ATTEMPT + 1))
-    fi
-  done
-
-  if [[ $? == 0 ]]; then
-    echo "Successfully assigned [$role] role to cluster identity [$managed_identity_name] on the [$scope_name] virtual network"
-  else
-    echo "Failed to assign [$role] role to cluster identity [$managed_identity_name] on the [$scope_name] virtual network"
-    exit 1
-  fi
-fi
+ensure_role_assignment "$cluster_identity_principal_id" "ServicePrincipal" "Network Contributor" \
+	"$virtual_network_id" "[$aks_cluster_name] cluster identity" "[$virtual_network_name] virtual network"
 
 # Check if the user node pool exists
 echo "Checking if [$aks_cluster_name] aks cluster actually has a user node pool..."
@@ -925,51 +932,9 @@ fi
 # Get the name of the Azure Key Vault Secrets Provider identity from the resourceId
 kv_secret_provider_managed_identity_name=$(basename $kv_secret_provider_managed_identity_resource_id)
 
-# Assign the Key Vault Administrator role to the managed identity on the node resource group
-role="Key Vault Administrator"
-managed_identity_name="$kv_secret_provider_managed_identity_name"
-principal_id="$kv_secret_provider_managed_identity_object_id"
-scope_id="$key_vault_id"
-scope_name="$key_vault_name"
-scope_type="key vault"
-echo "Checking if the [$managed_identity_name] managed identity has the [$role] role assignment on the [$scope_name] $scope_type..."
-current=$(az role assignment list \
-	--assignee "$principal_id" \
-	--scope "$scope_id" \
-	--query "[?roleDefinitionName=='$role'].roleDefinitionName" \
-	--output tsv 2>/dev/null)
-
-if [[ $current == "$role" ]]; then
-	echo "Managed identity [$managed_identity_name] already has the [$role] role assignment on the [$scope_name] $scope_type"
-else
-	echo "Managed identity [$managed_identity_name] does not have the [$role] role assignment on the [$scope_name] $scope_type"
-	echo "Creating role assignment: assigning [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type..."
-	ATTEMPT=1
-	while [ $ATTEMPT -le $RETRY_COUNT ]; do
-		echo "Attempt $ATTEMPT of $RETRY_COUNT to assign role..."
-		az role assignment create \
-			--assignee "$principal_id" \
-			--role "$role" \
-			--scope "$scope_id" 1>/dev/null
-
-		if [[ $? == 0 ]]; then
-			break
-		else
-			if [ $ATTEMPT -lt $RETRY_COUNT ]; then
-				echo "Role assignment failed. Waiting [$SLEEP] seconds before retry..."
-				sleep $SLEEP
-			fi
-			ATTEMPT=$((ATTEMPT + 1))
-		fi
-	done
-
-	if [[ $? == 0 ]]; then
-		echo "Successfully assigned [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type"
-	else
-		echo "Failed to assign [$role] role to managed identity [$managed_identity_name] on the [$scope_name] $scope_type"
-		exit 1
-	fi
-fi
+# Assign the Key Vault Administrator role to the Azure Key Vault Secrets Provider identity on the key vault
+ensure_role_assignment "$kv_secret_provider_managed_identity_object_id" "ServicePrincipal" "Key Vault Administrator" \
+	"$key_vault_id" "[$kv_secret_provider_managed_identity_name] managed identity" "[$key_vault_name] key vault"
 
 # Retrieve the container registry id
 acr_id=$(az acr show \

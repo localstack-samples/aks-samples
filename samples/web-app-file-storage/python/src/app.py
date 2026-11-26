@@ -1,4 +1,5 @@
 import os
+import logging
 import socket
 import datetime
 from typing import List, Tuple
@@ -7,6 +8,12 @@ from flask import Flask, flash, jsonify, render_template, request, redirect, url
 # Initialize Flask application
 app: Flask = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24))
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # Directory where the Azure file share is mounted in the container. The app talks to the share
 # through the file system only: no Azure SDK, no connection string, no account key. Everything
@@ -34,15 +41,15 @@ def get_environment_variables():
         if not activities_dir:
             raise ValueError("The ACTIVITIES_DIR environment variable is set to an empty value.")
     except ValueError as ve:
-        print(f"Configuration Error: {ve}")
+        logger.error(f"Configuration Error: {ve}")
     except Exception as ex:
-        print(f"An error occurred: {ex}")
+        logger.error(f"An error occurred: {ex}")
 
 def get_activities_dir():
     """Return the mounted directory holding the activities, or None when it is not usable."""
     global activities_dir
     try:
-        print(f"Resolving the activities directory...")
+        logger.info(f"Resolving the activities directory...")
 
         if not activities_dir:
             raise ValueError("Activities directory is not set. Please set the ACTIVITIES_DIR environment variable.")
@@ -60,13 +67,13 @@ def get_activities_dir():
                 "Check the mount options of the volume (SMB) or the ownership of the share (NFS)."
             )
 
-        print(f"Activities directory '{activities_dir}' resolved successfully.")
+        logger.info(f"Activities directory '{activities_dir}' resolved successfully.")
         return activities_dir
     except ValueError as ve:
-        print(f"Configuration Error: {ve}")
+        logger.error(f"Configuration Error: {ve}")
         return None
     except Exception as ex:
-        print(f"An error occurred while resolving the activities directory: {ex}")
+        logger.error(f"An error occurred while resolving the activities directory: {ex}")
         return None
 
 def create_activities_dir_if_not_exists():
@@ -78,18 +85,18 @@ def create_activities_dir_if_not_exists():
 
         # The mount point itself always exists (the kubelet creates it when it mounts the volume),
         # so this only ever creates a subdirectory when ACTIVITIES_DIR points below the mount point.
-        print(f"Creating activities directory '{activities_dir}' if it does not exist.")
+        logger.info(f"Creating activities directory '{activities_dir}' if it does not exist.")
         os.makedirs(activities_dir, exist_ok=True)
-        print(f"Activities directory '{activities_dir}' is ready.")
+        logger.info(f"Activities directory '{activities_dir}' is ready.")
     except ValueError as ve:
-        print(f"Configuration Error: {ve}")
+        logger.error(f"Configuration Error: {ve}")
     except OSError as ose:
-        print(f"An error occurred while creating the activities directory: {ose}")
+        logger.error(f"An error occurred while creating the activities directory: {ose}")
     except Exception as ex:
-        print(f"An error occurred while creating the activities directory: {ex}")
+        logger.error(f"An error occurred while creating the activities directory: {ex}")
 
-def read_activities_from_dir():
-    """Read all the activity files from the activities directory."""
+def read_activities_from_dir() -> bool:
+    """Read all the activity files from the activities directory. Returns False when the read failed, which is logged."""
     global activities_dir, activities
     try:
         if not activities_dir:
@@ -112,18 +119,20 @@ def read_activities_from_dir():
                 with open(path, "r", encoding="utf-8") as file:
                     content = file.read()
             except FileNotFoundError:
-                print(f"Activity file '{name}' disappeared while reading the directory: skipping it.")
+                logger.info(f"The activity file '{name}' disappeared while reading the directory: skipping it.")
                 continue
 
-            print(f"Found activity file: {name} with size {size} bytes")
-            print(f"Content of activity file '{name}': {content}")
+            logger.info(f"Found activity file: {name} with size {size} bytes")
+            logger.info(f"Content of activity file '{name}': {content}")
             activities.append((name, content))
+        return True
     except ValueError as ve:
-        print(f"Configuration Error: {ve}")
+        logger.error(f"Configuration Error: {ve}")
     except OSError as ose:
-        print(f"An error occurred while reading the activity files: {ose}")
+        logger.error(f"An error occurred while reading the activity files: {ose}")
     except Exception as ex:
-        print(f"An error occurred while reading the activity files: {ex}")
+        logger.error(f"An error occurred while reading the activity files: {ex}")
+    return False
 
 def is_activity_name(name: str | None) -> bool:
     """Whether the name is one of this app's activity files, and nothing else.
@@ -163,19 +172,19 @@ def write_activity(name: str | None, content: str | None) -> bool:
 
         path = os.path.join(activities_dir, str(name))
 
-        print(f"Writing activity file '{name}' in directory '{activities_dir}'.")
+        logger.info(f"Writing activity file '{name}' in directory '{activities_dir}'.")
         with open(path, "w", encoding="utf-8") as file:
             file.write(content)
-        print(f"Activity file '{name}' written successfully.")
+        logger.info(f"Activity file '{name}' written successfully.")
         return True
     except ValueError as ve:
-        print(f"Configuration Error: {ve}")
+        logger.error(f"Configuration Error: {ve}")
         return False
     except OSError as ose:
-        print(f"An error occurred while writing the activity file: {ose}")
+        logger.error(f"An error occurred while writing the activity file: {ose}")
         return False
     except Exception as ex:
-        print(f"An error occurred while writing the activity file: {ex}")
+        logger.error(f"An error occurred while writing the activity file: {ex}")
         return False
 
 def delete_activity(name: str | None) -> bool:
@@ -195,27 +204,27 @@ def delete_activity(name: str | None) -> bool:
 
         path = os.path.join(activities_dir, str(name))
 
-        print(f"Deleting activity file '{name}' from directory '{activities_dir}'.")
+        logger.info(f"Deleting activity file '{name}' from directory '{activities_dir}'.")
         os.remove(path)
-        print(f"Activity file '{name}' deleted successfully.")
+        logger.info(f"Activity file '{name}' deleted successfully.")
         return True
     except ValueError as ve:
-        print(f"Configuration Error: {ve}")
+        logger.error(f"Configuration Error: {ve}")
         return False
     except FileNotFoundError:
         # A missing activities directory is not a deleted activity: the share itself is gone, and
         # reporting success would hide that. Only a missing file counts as already deleted.
         if activities_dir and not os.path.isdir(activities_dir):
-            print(f"Activities directory '{activities_dir}' does not exist. Is the Azure file share mounted?")
+            logger.warning(f"Activities directory '{activities_dir}' does not exist. Is the Azure file share mounted?")
             return False
 
-        print(f"Activity file '{name}' does not exist in directory '{activities_dir}': already deleted.")
+        logger.info(f"No activity file '{name}' in directory '{activities_dir}': already deleted.")
         return True
     except OSError as ose:
-        print(f"An error occurred while deleting the activity file: {ose}")
+        logger.error(f"An error occurred while deleting the activity file: {ose}")
         return False
     except Exception as ex:
-        print(f"An error occurred while deleting the activity file: {ex}")
+        logger.error(f"An error occurred while deleting the activity file: {ex}")
         return False
 
 @app.route('/', methods=['GET', 'POST'])
@@ -227,6 +236,7 @@ def index():
             if row_id:
                 # Overwrite the content of the existing activity file in place
                 if write_activity(row_id, activity):
+                    logger.info("Activity updated: %s (id %s)", activity, row_id)
                     for i, act in enumerate(activities):
                         if act[0] == row_id:
                             activities[i] = (row_id, activity)
@@ -239,6 +249,7 @@ def index():
                 timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
                 name = f"{timestamp}{ACTIVITY_FILE_SUFFIX}"
                 if write_activity(name, activity):
+                    logger.info("Activity added: %s", activity)
                     activities.append((name, activity))
                     flash('Activity added successfully.')
                 else:
@@ -247,7 +258,8 @@ def index():
 
     # Always reload the activities from the Azure file share on GET
     activities.clear()
-    read_activities_from_dir()
+    if read_activities_from_dir():
+        logger.info("Activity retrieved: %d activities", len(activities))
     return render_template('index.html', activities=activities, pod_name=pod_name)
 
 @app.route('/delete', methods=['POST'])
@@ -259,6 +271,7 @@ def delete():
     name = request.form.get('activity_id', '').strip()
 
     if delete_activity(name):
+        logger.info("Activity deleted: %s", name)
         for i, act in enumerate(activities):
             if act[0] == name:
                 activities.pop(i)
@@ -279,7 +292,7 @@ def health():
             raise ValueError(f"Activities directory '{activities_dir}' is not writable by uid {os.geteuid()}.")
         return jsonify({"status": "ok"})
     except Exception as ex:
-        print(f"Health check failed: {ex}")
+        logger.warning(f"Health check failed: {ex}")
         return jsonify({"status": "unavailable"}), 503
 
 # Initialize the application and the activities directory when the module is loaded.

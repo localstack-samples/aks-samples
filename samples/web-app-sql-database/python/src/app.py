@@ -44,8 +44,8 @@ def create_activity(activity: str | None = None) -> dict:
         "activity": activity
     }
 
-def read_activities_from_db(username: str | None = None) -> List[Tuple[str, str]]:
-    """Read all activities from the SQL Database."""
+def read_activities_from_db(username: str | None = None) -> List[Tuple[str, str]] | None:
+    """Read all activities from the SQL Database. Returns None when the read failed, which is logged."""
     result = []
     try:
         if activities_helper and username:
@@ -54,6 +54,7 @@ def read_activities_from_db(username: str | None = None) -> List[Tuple[str, str]
                 result.append((activity["id"], activity["activity"]))
     except (ConnectionError, ValueError, KeyError) as e:
         logger.error("Error reading activities: %s", e)
+        return None
     return result
 
 @app.route('/', methods=['GET', 'POST'])
@@ -77,7 +78,7 @@ def index():
                     updated_activity = activities_helper.update_activity_by_id(row_id, activity_text)
                     if updated_activity:
                         flash('Activity updated.')
-                        logger.info(f"Activity updated: {row_id}")
+                        logger.info("Activity updated: %s (id %s)", activity_text, row_id)
                 else:
                     # Create an activity document with the activity text provided
                     activity_doc: dict = create_activity(activity_text)
@@ -89,7 +90,7 @@ def index():
                         # Append the activity to the in-memory list
                         activities.append((inserted_activity["id"], inserted_activity["activity"]))
                         flash('Activity added.')
-                        logger.info(f"Activity created: {inserted_activity['id']}")
+                        logger.info("Activity added: %s", inserted_activity["activity"])
             except (ConnectionError, ValueError) as e:
                 logger.error("Error creating/updating activity: %s", e)
 
@@ -97,7 +98,10 @@ def index():
 
     # Always reload activities from SQL Database on GET (refresh)
     activities.clear()
-    activities.extend(read_activities_from_db(username))
+    loaded = read_activities_from_db(username)
+    if loaded is not None:
+        activities.extend(loaded)
+        logger.info("Activity retrieved: %d activities", len(activities))
 
     return render_template('index.html', activities=activities, username=username, edit_id=edit_id, edit_activity=edit_activity)
 
@@ -135,7 +139,7 @@ def update(activity_id: str):
         if activity_id:
             # Read the current text from the database, so the form does not depend on this replica's
             # in-process list, which another replica may have made stale.
-            for stored_id, activity_text in read_activities_from_db(username):
+            for stored_id, activity_text in read_activities_from_db(username) or []:
                 if stored_id == activity_id:
                     # Redirect to index with edit parameters
                     return redirect(url_for('index', edit_id=activity_id, edit_activity=activity_text))
@@ -170,7 +174,7 @@ if not username or not username.strip():
 
 if activities_helper:
     # Read activities from SQL Database to populate the activities list
-    activities.extend(read_activities_from_db(username))
+    activities.extend(read_activities_from_db(username) or [])
     logger.info(f"Loaded {len(activities)} activities for user: {username}")
 
 # Run the Flask application

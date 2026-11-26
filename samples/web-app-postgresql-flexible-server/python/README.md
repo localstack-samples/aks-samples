@@ -69,8 +69,129 @@ curl http://localhost:8080/health
 
 ## Logs
 
-The app logs one line per request — gunicorn writes an access log line for every call, the probes included, because its command passes `--access-logfile -` — plus one line per database read and write and one line for every activity added, updated or deleted. Every entry carries a timestamp, the logger name and the level; the Azure SDK and `urllib3` stay at warning level. The [.NET version](../dotnet/README.md) writes the same trace.
+The app logs one line per request — gunicorn writes an access log line for every call, the probes included, because its command passes `--access-logfile -` — plus one line per database read and write and one line for every activity added, updated, deleted or retrieved (see [Query the logs with KQL](#query-the-logs-with-kql)). Every entry carries a timestamp, the logger name and the level; the Azure SDK and `urllib3` stay at warning level. The [.NET version](../dotnet/README.md) writes the same trace.
 
 ```bash
 kubectl logs deployment/vacation-planner-postgres -n vacation-planner-postgres --tail=50
+```
+
+## Query the logs with KQL
+
+The cluster scripts listed at the top of this page enable the monitoring add-on, so Container Insights collects the containers' logs and the cluster's inventory, events and metrics in the Log Analytics workspace they create (`local-log-analytics-test` in `local-rg`, with the default names). The [Bicep](../../../bicep/README.md) and [Terraform](../../../terraform/README.md) templates enable it too, and [scripts/01-configurable-cluster.sh](../../../scripts/01-configurable-cluster.sh) enables it unless you turn monitoring off. [scripts/01-basic-cluster.sh](../../../scripts/01-basic-cluster.sh) doesn't.
+
+To explore the data, open the Log Analytics workspace in the [Azure Portal Emulator](https://docs.localstack.cloud/azure/developer-tools/portal/) or in the Azure portal, select **Logs** in the navigation bar, and run queries written in the [Kusto Query Language (KQL)](https://docs.localstack.cloud/azure/developer-tools/kusto-query-language/). On Azure, new rows can take a few minutes to arrive. The same queries run from the command line through the Azure CLI's `log-analytics` extension (`az extension add --name log-analytics`):
+
+```bash
+workspace_id=$(az monitor log-analytics workspace show \
+  --resource-group local-rg \
+  --workspace-name local-log-analytics-test \
+  --query customerId \
+  --output tsv)
+
+az monitor log-analytics query \
+  --workspace "$workspace_id" \
+  --analytics-query 'ContainerLogV2 | where LogMessage has "Activity" | take 20' \
+  --output table
+```
+
+Container Insights writes these tables:
+
+- **ContainerLogV2**: Recommended table (replacing the legacy ContainerLog) containing the stdout and stderr logs emitted by containers. It offers improved schemas and support for multi-line logs.
+- **KubeEvents**: Collects native Kubernetes events generated within the cluster (e.g., pod scheduling, crashes, restarts).
+- **KubePodInventory**: Information about the status and lifecycle of the cluster's pods (Ready, Failed, Pending, etc.).
+- **ContainerInventory**: Tracks the status of individual containers (e.g., images used, execution status, container ID).
+- **ContainerNodeInventory**: Information and status of the worker nodes (VMs or VMSSs) that make up the node pools.
+- **InsightsMetrics**: Metrics about deployments, the kubelets and scraped Prometheus endpoints. On Azure it also holds the nodes' disk and network metrics, which the emulator doesn't produce. CPU and memory usage are in Perf.
+- **Perf**: CPU and memory usage, requests and limits of the nodes and containers.
+- **KubeServices**: Tracks the inventory of Kubernetes services (ClusterIP, NodePort, LoadBalancer).
+- **KubeNodeInventory**: The nodes as Kubernetes sees them: status, labels and Kubernetes version.
+- **KubePVInventory**: Persistent volumes and their claims.
+- **KubeMonAgentEvents**: Diagnostic events related to the monitoring agent itself. Empty on the emulator, which runs no agent.
+
+Every activity operation writes one line in the form `Activity <operation>: <details>`, where the operation is `added`, `updated`, `deleted` or `retrieved`:
+
+```text
+Activity added: Go to Viareggio
+Activity updated: Go to Lucca (id 6f1c2a…)
+Activity deleted: 6f1c2a…
+Activity retrieved: 4 activities
+```
+
+ContainerLogV2 infers each line's `LogLevel` from its text, so these lines are stored at the `info` level, and a line that names no level is stored as `unknown`.
+
+Kubernetes events by kind and reason:
+
+```kusto
+KubeEvents
+| summarize EventCount = count() by ObjectKind, Reason
+| sort by EventCount desc
+```
+
+Kubernetes events per minute by reason:
+
+```kusto
+KubeEvents
+| summarize EventCount = count() by bin(TimeGenerated, 1m), Reason
+| render timechart with (title="Kubernetes events by reason")
+```
+
+Pods and containers over time:
+
+```kusto
+union
+    (KubePodInventory
+    | summarize Count = dcount(PodUid) by bin(TimeGenerated, 1m)
+    | extend Series = "Pods"),
+    (ContainerInventory
+    | summarize Count = dcount(ContainerID) by bin(TimeGenerated, 1m)
+    | extend Series = "Containers")
+| render timechart with (title="Pod vs. Container Count in the AKS Cluster")
+```
+
+Nodes over time:
+
+```kusto
+ContainerNodeInventory
+| summarize NodeCount = dcount(Computer) by bin(TimeGenerated, 1m)
+| render timechart with (title="Node Count in the AKS Cluster")
+```
+
+Log lines by container and level in the last two hours:
+
+```kusto
+ContainerLogV2
+| where TimeGenerated > ago(2h)
+| where PodNamespace != "kube-system"
+| extend Level = toupper(LogLevel)
+| summarize Count = count() by ContainerName, Level
+| render barchart with (kind=stacked, title="Log Output by Container and Level")
+```
+
+Activities added, with the pod that served each request:
+
+```kusto
+ContainerLogV2
+| where LogMessage contains "Activity added"
+| project TimeGenerated, PodName, LogMessage
+```
+
+Activity operations:
+
+```kusto
+ContainerLogV2
+| where LogMessage has_any ("added", "updated", "deleted", "retrieved")
+| parse tostring(LogMessage) with * "Activity " Operation ": " Details
+| where Operation in ("added", "updated", "deleted", "retrieved")
+| project TimeGenerated, PodName, Operation, Details
+```
+
+Activity operations per minute by type:
+
+```kusto
+ContainerLogV2
+| where LogMessage has_any ("added", "updated", "deleted", "retrieved")
+| parse tostring(LogMessage) with * "Activity " Operation ": " *
+| where Operation in ("added", "updated", "deleted", "retrieved")
+| summarize Count = count() by bin(TimeGenerated, 1m), Operation
+| render columnchart with (kind=stacked, title="Operations by type")
 ```

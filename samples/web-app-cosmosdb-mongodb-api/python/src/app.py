@@ -52,8 +52,8 @@ def create_document(activity: str | None = None) -> dict:
         "timestamp": timestamp
     }
 
-def read_documents(username: str | None = None) -> List[dict]:
-    """Read all documents from the MongoDB collection."""
+def read_documents(username: str | None = None) -> List[dict] | None:
+    """Read all documents from the MongoDB collection. Returns None when the read failed, which is logged."""
     documents = []
     try:
         if mongodb_client:
@@ -64,6 +64,7 @@ def read_documents(username: str | None = None) -> List[dict]:
                 activities.append((document["_id"], document["activity"]))
     except (ConnectionError, ValueError, KeyError) as e:
         logger.error("Error reading documents: %s", e)
+        return None
     return documents
 
 @app.route('/', methods=['GET', 'POST'])
@@ -81,7 +82,7 @@ def index():
 
                     updated_activity = mongodb_client.update_document_by_id(row_id, {"activity": activity})
                     if updated_activity:
-                        logger.info(f"Activity updated: {row_id}")
+                        logger.info("Activity updated: %s (id %s)", activity, row_id)
                         flash("Activity updated!")
                 else:
                     # Create a document with the activity provided
@@ -90,7 +91,7 @@ def index():
 
                     # Append the activity to the activities list
                     activities.append((document["_id"], activity))
-                    logger.info(f"Activity added: {activity}")
+                    logger.info("Activity added: %s", activity)
                     flash("Activity added!")
 
             except (ConnectionError, ValueError) as e:
@@ -99,7 +100,8 @@ def index():
         return redirect(url_for('index'))
 
     # Always reload activities from Cosmos DB on GET (refresh)
-    read_documents(username)
+    if read_documents(username) is not None:
+        logger.info("Activity retrieved: %d activities", len(activities))
 
     return render_template('index.html', activities=activities, username=username)
 
@@ -117,7 +119,10 @@ def delete(activity_id: str):
     """
     if activity_id:
         # Delete the document from MongoDB
-        mongodb_client.delete_document_by_id(activity_id)
+        # An activity that is already gone counts as deleted, as in the .NET version
+        if not mongodb_client.delete_document_by_id(activity_id):
+            logger.info("No activity %s to delete: already deleted.", activity_id)
+        logger.info("Activity deleted: %s", activity_id)
         for i, act in enumerate(activities):
             if act[0] == activity_id:
                 activities.pop(i)

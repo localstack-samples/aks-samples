@@ -75,7 +75,8 @@ public sealed class CosmosActivityStore : IActivityStore
         return true;
     }
 
-    /// <summary>Like the Python sample, an update of a missing item is logged and still reported as done.</summary>
+    /// <summary>An update of a missing item changes nothing: it is logged and reported as no change, as the Python sample's
+    /// driver reports it, so the page neither confirms nor logs an edit that was thrown away.</summary>
     public async Task<bool> UpdateAsync(string id, string text, CancellationToken cancellationToken)
     {
         try
@@ -84,13 +85,13 @@ public sealed class CosmosActivityStore : IActivityStore
             item.Resource.Activity = text;
             await Container.ReplaceItemAsync(item.Resource, id, new PartitionKey(_options.Username), cancellationToken: cancellationToken);
             _logger.LogInformation("Updated item {Id} in container '{Container}'", id, _options.ContainerName);
+            return true;
         }
         catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
             _logger.LogWarning("Activity {Id} was not found; nothing to update", id);
+            return false;
         }
-
-        return true;
     }
 
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken)
@@ -105,7 +106,7 @@ public sealed class CosmosActivityStore : IActivityStore
         {
             // Already gone counts as deleted: every replica serves the same container, so another replica
             // may have deleted the item a moment earlier, and the user should see it disappear either way.
-            _logger.LogInformation("Activity {Id} was not found: already deleted.", id);
+            _logger.LogInformation("No activity {Id} to delete: already deleted.", id);
             return true;
         }
     }

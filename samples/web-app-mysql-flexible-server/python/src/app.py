@@ -38,12 +38,15 @@ if not username or not username.strip():
 activities: List[Tuple[str, str]] = []
 
 
-def reload_activities() -> None:
+def reload_activities() -> bool:
+    """Reload the activities from the database. Returns False when the read failed, which is logged."""
     activities.clear()
     try:
         activities.extend(db_client.list_activities(username))
+        return True
     except Exception as exc:
         logger.error("Failed to load activities: %s", exc)
+        return False
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -57,7 +60,7 @@ def index():
                     if not row_id.strip():
                         raise ValueError("Row ID cannot be empty")
                     if db_client.update_activity(row_id, activity):
-                        logger.info("Activity updated: %s", row_id)
+                        logger.info("Activity updated: %s (id %s)", activity, row_id)
                         flash("Activity updated!")
                 else:
                     activity_id = make_activity_id(username, activity)
@@ -69,7 +72,8 @@ def index():
 
         return redirect(url_for("index"))
 
-    reload_activities()
+    if reload_activities():
+        logger.info("Activity retrieved: %d activities", len(activities))
     return render_template("index.html", activities=activities, username=username)
 
 
@@ -87,7 +91,11 @@ def delete(activity_id: str):
     a position would then delete whatever activity happens to sit there now.
     """
     if activity_id:
-        db_client.delete_activity(activity_id)
+        # An activity that is already gone counts as deleted, as in the .NET version: another replica may have
+        # deleted it a moment earlier.
+        if not db_client.delete_activity(activity_id):
+            logger.info("No activity %s to delete: already deleted.", activity_id)
+        logger.info("Activity deleted: %s", activity_id)
         flash("Activity deleted.")
     return redirect(url_for("index"))
 

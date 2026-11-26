@@ -2,7 +2,10 @@
 # Check a deployed Vacation Planner sample end to end through its Kubernetes service:
 # 1. the Deployment rolls out and GET /health reports the data service as reachable
 # 2. adding an activity through the web form stores it, and the page lists it
-# 3. deleting it through the web form removes it from the page
+# 3. updating it through the web form changes its text in place, under the same id
+# 4. deleting it through the web form removes it from the page
+# 5. the app logs one `Activity <operation>: <details>` line for each of these operations, the lines the
+#    README's KQL queries count and list in ContainerLogV2
 # It drives both versions of every sample: the Python (Flask) and the .NET (Razor Pages) web app.
 #
 # Usage: tests/test-vacation-planner.sh <namespace> <service> [deployment]
@@ -121,6 +124,19 @@ if [ -z "$row_id" ]; then
 fi
 echo "PASS: added activity '$ACTIVITY' (id $row_id) and the page lists it"
 
+UPDATED_ACTIVITY="CI update $(date +%s)"
+status=$(post_form / "activity=$UPDATED_ACTIVITY" "row_id=$row_id")
+if [ "$status" != "302" ]; then
+  echo "Test failed: updating the activity returned HTTP $status, expected a 302 redirect"
+  exit 1
+fi
+page=$(get_page)
+if [ "$(row_id_of "$UPDATED_ACTIVITY")" != "$row_id" ]; then
+  echo "Test failed: the page does not list '$UPDATED_ACTIVITY' under the id $row_id after updating it"
+  exit 1
+fi
+echo "PASS: updated the activity to '$UPDATED_ACTIVITY' in place (id $row_id)"
+
 # Keep a second activity listed while the first is deleted. An app that swallows a failed read renders an
 # empty list rather than an error (the in-cluster and blob apps do), so without it the absence check below
 # also passes on a page that lists nothing. The blob and Azure Files samples name each activity after the
@@ -140,11 +156,40 @@ if [ -z "$kept_id" ]; then
   echo "Test failed: the page no longer lists '$KEPT_ACTIVITY', so it cannot show the deleted activity is gone"
   exit 1
 fi
-if [ -n "$(row_id_of "$ACTIVITY")" ]; then
+if [ -n "$(row_id_of "$UPDATED_ACTIVITY")" ]; then
   echo "Test failed: the activity is still listed after deleting it"
   exit 1
 fi
 echo "PASS: deleted the activity and the page no longer lists it"
 delete_activity "$kept_id" > /dev/null || true
 
-echo "Test passed: the Vacation Planner in [$NAMESPACE] stores, lists and deletes activities"
+# Every activity operation writes one line in the form the README's KQL queries parse. The requests went
+# through the service, so read the logs of all the Deployment's pods, and give them a moment to arrive.
+selector=$(kubectl get deployment "$DEPLOYMENT" --namespace "$NAMESPACE" \
+  -o go-template='{{range $key, $value := .spec.selector.matchLabels}}{{$key}}={{$value}},{{end}}')
+selector=${selector%,}
+expected=(
+  "Activity added: $ACTIVITY"
+  "Activity updated: $UPDATED_ACTIVITY (id $row_id)"
+  "Activity deleted: $row_id"
+  "Activity retrieved: "
+)
+missing=()
+for attempt in $(seq 1 15); do
+  logs=$(kubectl logs --namespace "$NAMESPACE" --selector "$selector" --all-containers --tail=-1 \
+    --max-log-requests=20 2>&1 || true)
+  missing=()
+  for line in "${expected[@]}"; do
+    grep -qF -- "$line" <<< "$logs" || missing+=("$line")
+  done
+  [ ${#missing[@]} -eq 0 ] && break
+  sleep 2
+done
+if [ ${#missing[@]} -ne 0 ]; then
+  echo "Test failed: the logs of the pods selected by [$selector] lack these lines:"
+  printf '  %s\n' "${missing[@]}"
+  exit 1
+fi
+echo "PASS: the app logged the activity added, updated, deleted and retrieved"
+
+echo "Test passed: the Vacation Planner in [$NAMESPACE] stores, lists, updates and deletes activities, and logs each operation"
